@@ -1,3 +1,5 @@
+import datastruct.MetaCell;
+import datastruct.WorldExt;
 import model.*;
 
 import java.util.*;
@@ -30,6 +32,9 @@ public final class MyStrategy implements Strategy {
      */
     @Override
     public void move(Player me, World world, Game game, Move move) {
+        WorldExt worldExt = new WorldExt(world);
+        MetaCell[][] metaCells = worldExt.separateByMetaCells(10);
+
         initializeStrategy(world, game);
         initializeTick(me, world, game, move);
 
