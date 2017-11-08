@@ -9,6 +9,12 @@ public class TransportSolver {
 
     public static boolean print = false;
 
+    /**
+     * @param c стоимость пути от склада до магазина. По вертикали запасы (склады), по горизонтали потребность (магазины)
+     * @param a запасы
+     * @param b потребности
+     * @return матрицу распределения частей запасов по магазинам
+     */
     public static int[][] solve(int[][] c, int[] a, int[] b) {
         int asum = Arrays.stream(a).sum();
         int bsum = Arrays.stream(b).sum();
