@@ -1,105 +1,197 @@
+import algo.TransportSolver;
 import datastruct.MetaCell;
+import datastruct.MetaGroup;
+import datastruct.PlayerExt;
 import datastruct.WorldExt;
 import model.*;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static datastruct.PlayerExt.Ownership.ENEMY;
+import static datastruct.PlayerExt.Ownership.MY;
+import static java.util.stream.Collectors.toSet;
+import static java.util.stream.Stream.of;
+import static model.VehicleType.*;
+import static model.VehicleType.HELICOPTER;
+import static model.VehicleType.TANK;
 
 @SuppressWarnings({"UnsecureRandomNumberGeneration", "FieldCanBeLocal", "unused", "OverlyLongMethod"})
 public final class MyStrategy implements Strategy {
-    private Random random;
 
-    private TerrainType[][] terrainTypeByCellXY;
-    private WeatherType[][] weatherTypeByCellXY;
-
-    private Player me;
-    private World world;
-    private Game game;
-    private Move move;
-
-    private final Map<Long, Vehicle> vehicleById = new HashMap<>();
-    private final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
+    private WorldExt worldExt;
     private final Queue<Consumer<Move>> delayedMoves = new ArrayDeque<>();
 
-    /**
-     * Основной метод стратегии, осуществляющий управление армией. Вызывается каждый тик.
-     *
-     * @param me    Информация о вашем игроке.
-     * @param world Текущее состояние мира.
-     * @param game  Различные игровые константы.
-     * @param move  Результатом работы метода является изменение полей данного объекта.
-     */
     @Override
     public void move(Player me, World world, Game game, Move move) {
-        WorldExt worldExt = new WorldExt(world);
-        MetaCell[][] metaCells = worldExt.separateByMetaCells(10);
+        PlayerExt.me = me;
+        move.setLeft(0);
+        move.setTop(0);
+        move.setRight(world.getWidth());
+        move.setBottom(world.getHeight());
 
-        initializeStrategy(world, game);
-        initializeTick(me, world, game, move);
+        if (worldExt == null) {
+            worldExt = new WorldExt(world);
+            worldExt.separateByMetaCells(128);
+        }
+        worldExt.tick(world);
 
         if (me.getRemainingActionCooldownTicks() > 0) {
             return;
         }
 
-        if (executeDelayedMove()) {
-            return;
-        }
+        System.out.println("Delayed moves: " + delayedMoves.size());
 
-        move();
+        if (delayedMoves.isEmpty()) {
+            for (VehicleType vehicleType : getVehicleTypes()) {
 
-        executeDelayedMove();
-    }
+                PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? MY : ENEMY;
 
-    /**
-     * Инциализируем стратегию.
-     * <p>
-     * Для этих целей обычно можно использовать конструктор, однако в данном случае мы хотим инициализировать генератор
-     * случайных чисел значением, полученным от симулятора игры.
-     */
-    private void initializeStrategy(World world, Game game) {
-        if (random == null) {
-            random = new Random(game.getRandomSeed());
+                MetaCell[] myCells = worldExt.getMetaCellsUnits(MY, of(vehicleType).collect(toSet()));
+                MetaCell[] enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, getPreferredTargetType(vehicleType));
 
-            terrainTypeByCellXY = world.getTerrainByCellXY();
-            weatherTypeByCellXY = world.getWeatherByCellXY();
-        }
-    }
+                if (myCells.length == 0) {
+                    return;
+                }
 
-    /**
-     * Сохраняем все входные данные в полях класса для упрощения доступа к ним, а также актуализируем сведения о каждой
-     * технике и времени последнего изменения её состояния.
-     */
-    private void initializeTick(Player me, World world, Game game, Move move) {
-        this.me = me;
-        this.world = world;
-        this.game = game;
-        this.move = move;
+                if (enemyCells.length == 0) {
+                    enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, getAnyTargetType(vehicleType));
+                }
 
-        for (Vehicle vehicle : world.getNewVehicles()) {
-            vehicleById.put(vehicle.getId(), vehicle);
-            updateTickByVehicleId.put(vehicle.getId(), world.getTickIndex());
-        }
+                if (enemyCells.length == 0) {
+                    return;
+                }
 
-        for (VehicleUpdate vehicleUpdate : world.getVehicleUpdates()) {
-            long vehicleId = vehicleUpdate.getId();
+                int[][] distances = new int[myCells.length][enemyCells.length];
+                for (int i = 0; i < myCells.length; i++) {
+                    for (int j = 0; j < enemyCells.length; j++) {
+                        int distance = myCells[i].distanceTo(enemyCells[j]);
+                        distances[i][j] = distance;
+                    }
+                }
 
-            if (vehicleUpdate.getDurability() == 0) {
-                vehicleById.remove(vehicleId);
-                updateTickByVehicleId.remove(vehicleId);
-            } else {
-                vehicleById.put(vehicleId, new Vehicle(vehicleById.get(vehicleId), vehicleUpdate));
-                updateTickByVehicleId.put(vehicleId, world.getTickIndex());
+                int[] a = Arrays.stream(myCells).mapToInt(cell -> cell.getVehicles(MY).size()).toArray();
+                int[] b = Arrays.stream(enemyCells).mapToInt(cell -> cell.getVehicles(meOrEnemy).size()).toArray();
+
+                int[][] solve = TransportSolver.solve(distances, a, b);
+
+                solve = optimizeSolve(myCells, enemyCells, solve);
+
+                for (int i = 0; i < solve.length; i++) {
+                    for (int j = 0; j < solve[0].length; j++) {
+                        int solution = solve[i][j];
+                        if (solution != 0) {
+                            MetaCell myCell = myCells[i];
+                            MetaCell enemyCell = enemyCells[j];
+
+                            MetaGroup metaGroup = worldExt.getMetaGroup(myCell, solution);
+
+                            if (!myCell.getVehicles(MY).isEmpty() && !enemyCell.getVehicles(meOrEnemy).isEmpty()) {
+                                int xDist = enemyCell.getVehicleX(meOrEnemy) - myCell.getMyVehX();
+                                int yDist = enemyCell.getVehicleY(meOrEnemy) - myCell.getMyVehY();
+
+                                //System.out.println("Time: " + metaGroup.getTimeToPoint(xDist, yDist));
+                                //if (metaGroup.getTimeToPoint(xDist, yDist) < 1000) {
+                                delayedMoves.add(delayedMove -> {
+                                    delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
+                                    delayedMove.setLeft(myCell.getX());
+                                    delayedMove.setTop(myCell.getY());
+                                    delayedMove.setRight(myCell.getX() + myCell.getSize());
+                                    delayedMove.setBottom(myCell.getY() + myCell.getSize());
+                                    delayedMove.setVehicleType(vehicleType);
+                                });
+
+                                delayedMoves.add(delayedMove -> {
+                                    delayedMove.setAction(ActionType.MOVE);
+                                    delayedMove.setX(xDist);
+                                    delayedMove.setY(yDist);
+                                });
+                                //}
+                            }
+                        }
+                    }
+                }
             }
+        } else {
+            executeDelayedMove(move);
+        }
+
+    }
+
+    private int[][] optimizeSolve(MetaCell[] myCells, MetaCell[] enemyCells, int[][] solve) {
+        if (solve.length > myCells.length) {
+            int newSizeI = myCells.length;
+            int newSizeJ = solve[0].length;
+            int diff = solve.length - newSizeI;
+            int[][] newSolve = new int[newSizeI][newSizeJ];
+
+            for (int i = solve.length - 1; i > solve.length - 1 - newSizeI; i--) {
+                for (int j = solve[0].length - 1; j >= 0; j--) {
+                    newSolve[i - diff][j] = solve[i][j];
+                }
+            }
+            solve = newSolve;
+        }
+
+        if (solve[0].length > enemyCells.length) {
+            int newSizeI = solve.length;
+            int newSizeJ = enemyCells.length;
+            int diff = solve[0].length - newSizeJ;
+            int[][] newSolve = new int[newSizeI][newSizeJ];
+
+            for (int i = solve.length - 1; i >= 0; i--) {
+                for (int j = solve[0].length - 1; j > solve[0].length - 1 - newSizeJ; j--) {
+                    newSolve[i][j - diff] = solve[i][j];
+                }
+            }
+            solve = newSolve;
+        }
+        return solve;
+    }
+
+    private static Set<VehicleType> getPreferredTargetType(VehicleType vehicleType) {
+        switch (vehicleType) {
+            case FIGHTER:
+                return of(HELICOPTER).collect(toSet());
+            case HELICOPTER:
+                return of(TANK).collect(toSet());
+            case IFV:
+                return of(HELICOPTER).collect(toSet());
+            case TANK:
+                return of(IFV).collect(toSet());
+            default:
+                return of(TANK, IFV).collect(toSet());
         }
     }
 
-    /**
-     * Достаём отложенное действие из очереди и выполняем его.
-     *
-     * @return Возвращает {@code true}, если и только если отложенное действие было найдено и выполнено.
-     */
-    private boolean executeDelayedMove() {
+    private Set<VehicleType> getAnyTargetType(VehicleType vehicleType) {
+        switch (vehicleType) {
+            case FIGHTER:
+                return of(HELICOPTER, FIGHTER).collect(toSet());
+            case HELICOPTER:
+                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
+            case IFV:
+                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
+            case TANK:
+                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
+            default:
+                return of(TANK, IFV, HELICOPTER, FIGHTER).collect(toSet());
+        }
+    }
+
+    private List<VehicleType> getVehicleTypes() {
+        List<VehicleType> vehicleTypes = new ArrayList<>(5);
+        vehicleTypes.add(ARRV);
+        vehicleTypes.add(FIGHTER);
+        vehicleTypes.add(HELICOPTER);
+        vehicleTypes.add(IFV);
+        vehicleTypes.add(TANK);
+        return vehicleTypes;
+    }
+
+    private boolean executeDelayedMove(Move move) {
         Consumer<Move> delayedMove = delayedMoves.poll();
         if (delayedMove == null) {
             return false;
@@ -109,165 +201,4 @@ public final class MyStrategy implements Strategy {
         return true;
     }
 
-    /**
-     * Основная логика нашей стратегии.
-     */
-    private void move() {
-        // Каждые 300 тиков ...
-        if (world.getTickIndex() % 300 == 0) {
-            // ... для каждого типа техники ...
-            for (VehicleType vehicleType : VehicleType.values()) {
-                VehicleType targetType = getPreferredTargetType(vehicleType);
-
-                // ... если этот тип может атаковать ...
-                if (targetType == null) {
-                    continue;
-                }
-
-                // ... получаем центр формации ...
-                double x = streamVehicles(
-                        Ownership.ALLY, vehicleType
-                ).mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
-
-                double y = streamVehicles(
-                        Ownership.ALLY, vehicleType
-                ).mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
-
-                // ... получаем центр формации противника или центр мира ...
-                double targetX = streamVehicles(
-                        Ownership.ENEMY, targetType
-                ).mapToDouble(Vehicle::getX).average().orElseGet(
-                        () -> streamVehicles(
-                                Ownership.ENEMY
-                        ).mapToDouble(Vehicle::getX).average().orElse(world.getWidth() / 2.0D)
-                );
-
-                double targetY = streamVehicles(
-                        Ownership.ENEMY, targetType
-                ).mapToDouble(Vehicle::getY).average().orElseGet(
-                        () -> streamVehicles(
-                                Ownership.ENEMY
-                        ).mapToDouble(Vehicle::getY).average().orElse(world.getHeight() / 2.0D)
-                );
-
-                // .. и добавляем в очередь отложенные действия для выделения и перемещения техники.
-                if (!Double.isNaN(x) && !Double.isNaN(y)) {
-                    delayedMoves.add(move -> {
-                        move.setAction(ActionType.CLEAR_AND_SELECT);
-                        move.setRight(world.getWidth());
-                        move.setBottom(world.getHeight());
-                        move.setVehicleType(vehicleType);
-                    });
-
-                    delayedMoves.add(move -> {
-                        move.setAction(ActionType.MOVE);
-                        move.setX(targetX - x);
-                        move.setY(targetY - y);
-                    });
-                }
-            }
-
-            // Также находим центр формации наших БРЭМ ...
-            double x = streamVehicles(
-                    Ownership.ALLY, VehicleType.ARRV
-            ).mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
-
-            double y = streamVehicles(
-                    Ownership.ALLY, VehicleType.ARRV
-            ).mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
-
-            // .. и отправляем их в центр мира.
-            if (!Double.isNaN(x) && !Double.isNaN(y)) {
-                delayedMoves.add(move -> {
-                    move.setAction(ActionType.CLEAR_AND_SELECT);
-                    move.setRight(world.getWidth());
-                    move.setBottom(world.getHeight());
-                    move.setVehicleType(VehicleType.ARRV);
-                });
-
-                delayedMoves.add(move -> {
-                    move.setAction(ActionType.MOVE);
-                    move.setX(world.getWidth() / 2.0D - x);
-                    move.setY(world.getHeight() / 2.0D - y);
-                });
-            }
-
-            return;
-        }
-
-        // Если ни один наш юнит не мог двигаться в течение 60 тиков ...
-        if (streamVehicles(Ownership.ALLY).allMatch(
-                vehicle -> world.getTickIndex() - updateTickByVehicleId.get(vehicle.getId()) > 60
-        )) {
-            /// ... находим центр нашей формации ...
-            double x = streamVehicles(Ownership.ALLY).mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
-            double y = streamVehicles(Ownership.ALLY).mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
-
-            // ... и поворачиваем её на случайный угол.
-            if (!Double.isNaN(x) && !Double.isNaN(y)) {
-                move.setAction(ActionType.ROTATE);
-                move.setX(x);
-                move.setY(y);
-                move.setAngle(random.nextBoolean() ? StrictMath.PI : -StrictMath.PI);
-            }
-        }
-    }
-
-    /**
-     * Вспомогательный метод, позволяющий для указанного типа техники получить другой тип техники, такой, что первый
-     * наиболее эффективен против второго.
-     *
-     * @param vehicleType Тип техники.
-     * @return Тип техники в качестве приоритетной цели.
-     */
-    private static VehicleType getPreferredTargetType(VehicleType vehicleType) {
-        switch (vehicleType) {
-            case FIGHTER:
-                return VehicleType.HELICOPTER;
-            case HELICOPTER:
-                return VehicleType.TANK;
-            case IFV:
-                return VehicleType.HELICOPTER;
-            case TANK:
-                return VehicleType.IFV;
-            default:
-                return null;
-        }
-    }
-
-    private Stream<Vehicle> streamVehicles(Ownership ownership, VehicleType vehicleType) {
-        Stream<Vehicle> stream = vehicleById.values().stream();
-
-        switch (ownership) {
-            case ALLY:
-                stream = stream.filter(vehicle -> vehicle.getPlayerId() == me.getId());
-                break;
-            case ENEMY:
-                stream = stream.filter(vehicle -> vehicle.getPlayerId() != me.getId());
-                break;
-            default:
-        }
-
-        if (vehicleType != null) {
-            stream = stream.filter(vehicle -> vehicle.getType() == vehicleType);
-        }
-
-        return stream;
-    }
-
-    private Stream<Vehicle> streamVehicles(Ownership ownership) {
-        return streamVehicles(ownership, null);
-    }
-
-    private Stream<Vehicle> streamVehicles() {
-        return streamVehicles(Ownership.ANY);
-    }
-
-    private enum Ownership {
-        ANY,
-
-        ALLY,
-
-        ENEMY
-    }
 }
