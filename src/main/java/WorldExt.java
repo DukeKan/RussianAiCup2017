@@ -12,8 +12,8 @@ public class WorldExt {
     private World world;
     private MetaCell[][] metaCells;
     private final Map<Long, Vehicle> vehicleById = new HashMap<>();
-    public final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
-    public final Map<Long, Pair<Double, Double>> positions = new HashMap<>();
+    public static final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
+    public static final Map<Long, Pair<Double, Double>> positions = new HashMap<>();
 
     public WorldExt(World world) {
         this.world = world;
@@ -146,13 +146,11 @@ public class WorldExt {
     }
 
     public MetaGroup getMetaGroup(PlayerExt.Ownership ownership, MetaCell metaCell, int vehicleCount) {
-        List<Vehicle> vehicles = metaCell.getVehicles(ownership).subList(0, Math.min(vehicleCount,
-                ownership.equals(PlayerExt.Ownership.MY) ?
-                        metaCell.getMyVehicles().size() :
-                        metaCell.getEnemyVehicles().size()));
-        List<Pair<Double, Double>> vehpos = new ArrayList<>(vehicles.size());
-        vehicles.forEach(veh -> vehpos.add(positions.get(veh.getId())));
-        return new MetaGroup(vehicles, vehpos);
+        List<Vehicle> vehiclesByOwnership = metaCell.getVehicles(ownership);
+        List<Vehicle> vehicles = vehiclesByOwnership.subList(0, Math.min(vehicleCount,vehiclesByOwnership.size()));
+        List<Pair<Double, Double>> vehiclePositions = new ArrayList<>(vehicles.size());
+        vehicles.forEach(veh -> vehiclePositions.add(positions.get(veh.getId())));
+        return new MetaGroup(vehicles, vehiclePositions);
     }
 
     public MetaCell getMetaCell(int i, int j) {

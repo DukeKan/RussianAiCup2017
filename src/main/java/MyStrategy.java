@@ -6,9 +6,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.of;
-import static model.VehicleType.*;
-import static model.VehicleType.HELICOPTER;
-import static model.VehicleType.TANK;
+import static model.VehicleType.ARRV;
 
 @SuppressWarnings({"UnsecureRandomNumberGeneration", "FieldCanBeLocal", "unused", "OverlyLongMethod"})
 public final class MyStrategy implements Strategy {
@@ -22,16 +20,13 @@ public final class MyStrategy implements Strategy {
     @Override
     public void move(Player me, World world, Game game, Move move) {
         PlayerExt.me = me;
-        move.setLeft(0);
-        move.setTop(0);
-        move.setRight(world.getWidth());
-        move.setBottom(world.getHeight());
 
         if (worldExt == null) {
             worldExt = new WorldExt(world);
             worldExt.separateByMetaCells(cellSize);
             random = new Random(game.getRandomSeed());
         }
+
         worldExt.tick(world);
 
         if (world.getTickIndex() < 2) {
@@ -42,7 +37,7 @@ public final class MyStrategy implements Strategy {
             return;
         }
 
-        List<VehicleType> vehicleTypes = getVehicleTypes();
+        List<VehicleType> vehicleTypes = VehicleExt.getVehicleTypes();
         if (delayedMoves.isEmpty()) {
             for (VehicleType vehicleType : vehicleTypes) {
 
@@ -50,17 +45,13 @@ public final class MyStrategy implements Strategy {
                 boolean putToEnemies = vehicleType.equals(ARRV);
 
                 MetaCell[] myCells = worldExt.getMetaCellsUnits(PlayerExt.Ownership.MY, false, of(vehicleType).collect(toSet()));
-                MetaCell[] enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, getPreferredTargetType(vehicleType));
-
-                if (myCells.length == 0) {
-                    continue;
-                }
+                MetaCell[] enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, VehicleExt.getPreferredTargetType(vehicleType));
 
                 if (enemyCells.length == 0) {
-                    enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, getAnyTargetType(vehicleType));
+                    enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, VehicleExt.getAnyTargetType(vehicleType));
                 }
 
-                if (enemyCells.length == 0) {
+                if (myCells.length == 0 || enemyCells.length == 0) {
                     continue;
                 }
 
@@ -77,7 +68,7 @@ public final class MyStrategy implements Strategy {
 
                 int[][] solve = TransportSolver.solve(distances, a, b);
 
-                solve = optimizeSolve(myCells, enemyCells, solve);
+                solve = TransportSolver.optimizeSolution(myCells, enemyCells, solve);
 
                 for (int i = 0; i < solve.length; i++) {
                     for (int j = 0; j < solve[0].length; j++) {
@@ -88,7 +79,12 @@ public final class MyStrategy implements Strategy {
 
                             int cellDist = myCell.distanceTo(enemyCell);
 
-                            if (cellDist < 10) {
+                            if (cellDist < 5) {
+                                continue;
+                            }
+
+                            if (waitTooLong(world, myCell)) {
+                                rotate(world, myCell);
                                 continue;
                             }
 
@@ -98,130 +94,68 @@ public final class MyStrategy implements Strategy {
                             if (!myCell.getVehicles(PlayerExt.Ownership.MY).isEmpty() && !enemyCell.getVehicles(PlayerExt.Ownership.ENEMY).isEmpty()) {
                                 int timeToPoint = myMetaGroup.getTimeToPoint(cellDist);
 
-                                //System.out.println(timeToPoint);
-
                                 Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint / 2);
 
                                 int xDist = positionInTime.getKey() - myCell.getMyVehX();
                                 int yDist = positionInTime.getValue() - myCell.getMyVehY();
 
-                                //if (myCell.distanceTo(enemyCell) < 1000) {
-                                    delayedMoves.add(delayedMove -> {
-                                        delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
-                                        delayedMove.setLeft(myCell.getX());
-                                        delayedMove.setTop(myCell.getY());
-                                        delayedMove.setRight(myCell.getX() + myCell.getSize());
-                                        delayedMove.setBottom(myCell.getY() + myCell.getSize());
-                                        delayedMove.setVehicleType(vehicleType);
-                                    });
+                                delayedMoves.add(delayedMove -> {
+                                    delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
+                                    delayedMove.setLeft(myCell.getX());
+                                    delayedMove.setTop(myCell.getY());
+                                    delayedMove.setRight(myCell.getX() + myCell.getSize());
+                                    delayedMove.setBottom(myCell.getY() + myCell.getSize());
+                                    delayedMove.setVehicleType(vehicleType);
+                                });
 
-                                    delayedMoves.add(delayedMove -> {
-                                        delayedMove.setAction(ActionType.MOVE);
-                                        delayedMove.setX(xDist);
-                                        delayedMove.setY(yDist);
-                                    });
-                                //}
+                                delayedMoves.add(delayedMove -> {
+                                    delayedMove.setAction(ActionType.MOVE);
+                                    delayedMove.setX(xDist);
+                                    delayedMove.setY(yDist);
+                                });
                             }
                         }
                     }
-                }
-
-                if (delayedMoves.isEmpty()) {
-                    //throw new IllegalStateException("No delayed moves");
                 }
             }
         } else {
             executeDelayedMove(move);
         }
-
     }
 
-    private int[][] optimizeSolve(MetaCell[] myCells, MetaCell[] enemyCells, int[][] solve) {
-        List<Integer> rowsToRemove = new ArrayList<>();
-        List<Integer> colsToRemove = new ArrayList<>();
+    private void rotate(World world, MetaCell myCell) {
+        double x = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
+        double y = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
 
-        if (solve.length > myCells.length) {
-            int newSizeI = myCells.length;
-            int newSizeJ = solve[0].length;
-            int diff = solve.length - newSizeI;
+        if (!Double.isNaN(x) && !Double.isNaN(y)) {
+            delayedMoves.add(delayedMove -> {
+                delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
+                delayedMove.setLeft(myCell.getX());
+                delayedMove.setRight(myCell.getX() + myCell.getSize());
+                delayedMove.setTop(myCell.getY());
+                delayedMove.setBottom(myCell.getY() + myCell.getSize());
+            });
 
-            Map<Integer, Integer> sumToRow = new TreeMap<>();
-
-            for (int i = 0; i < solve.length; i++) {
-                sumToRow.put(Arrays.stream(solve[i]).sum(), i);
-            }
-
-            Iterator<Integer> iterator = sumToRow.keySet().iterator();
-
-            for (int k = 0; k< diff; k++) {
-                rowsToRemove.add(sumToRow.get(iterator.next()));
-            }
-        }
-        if (solve[0].length > enemyCells.length) {
-            int newSizeI = solve.length;
-            int newSizeJ = enemyCells.length;
-            int diff = solve[0].length - newSizeJ;
-
-            Map<Integer, Integer> sumToCol = new TreeMap<>();
-
-            int[][] transposed = Matrix.transpose(solve);
-
-            for (int i = 0; i < transposed.length; i++) {
-                sumToCol.put(Arrays.stream(transposed[i]).sum(), i);
-            }
-
-            Iterator<Integer> iterator = sumToCol.keySet().iterator();
-
-            for (int k = 0; k< diff; k++) {
-                colsToRemove.add(sumToCol.get(iterator.next()));
-            }
+            delayedMoves.add(delayedMove -> {
+                delayedMove.setAction(ActionType.ROTATE);
+                delayedMove.setX(x + (random.nextDouble() - 0.5 ) * 20);
+                delayedMove.setY(y + (random.nextDouble() - 0.5 ) * 20);
+                delayedMove.setAngle(random.nextBoolean() ? StrictMath.PI : -StrictMath.PI);
+            });
         }
 
-        return Matrix.changeDimension(solve, rowsToRemove, colsToRemove);
+        System.out.println("Reformation");
     }
 
-    private static Set<VehicleType> getPreferredTargetType(VehicleType vehicleType) {
-        switch (vehicleType) {
-            case FIGHTER:
-                return of(HELICOPTER).collect(toSet());
-            case HELICOPTER:
-                return of(TANK).collect(toSet());
-            case IFV:
-                return of(HELICOPTER).collect(toSet());
-            case TANK:
-                return of(IFV).collect(toSet());
-            default:
-                return of(TANK, IFV).collect(toSet());
-        }
+    private boolean waitTooLong(World world, MetaCell myCell) {
+        return myCell.getMyVehicles().stream().allMatch(
+                vehicle -> world.getTickIndex() - WorldExt.updateTickByVehicleId.get(vehicle.getId()) > 300
+        );
     }
 
-    private Set<VehicleType> getAnyTargetType(VehicleType vehicleType) {
-        switch (vehicleType) {
-            case FIGHTER:
-                return of(HELICOPTER, FIGHTER).collect(toSet());
-            case HELICOPTER:
-                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
-            case IFV:
-                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
-            case TANK:
-                return of(TANK, IFV, HELICOPTER, FIGHTER, ARRV).collect(toSet());
-            default:
-                return of(TANK, IFV, HELICOPTER, FIGHTER).collect(toSet());
-        }
-    }
-
-    private List<VehicleType> getVehicleTypes() {
-        List<VehicleType> vehicleTypes = new ArrayList<>(5);
-        vehicleTypes.add(FIGHTER);
-        vehicleTypes.add(HELICOPTER);
-        vehicleTypes.add(IFV);
-        vehicleTypes.add(TANK);
-        vehicleTypes.add(ARRV);
-        return vehicleTypes;
-    }
 
     private boolean executeDelayedMove(Move move) {
-        System.out.println("Delayed moves size: " + delayedMoves.size());
+        //System.out.println("Delayed moves size: " + delayedMoves.size());
         Consumer<Move> delayedMove = delayedMoves.poll();
         if (delayedMove == null) {
             return false;
@@ -230,5 +164,4 @@ public final class MyStrategy implements Strategy {
         delayedMove.accept(move);
         return true;
     }
-
 }

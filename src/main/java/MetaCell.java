@@ -117,6 +117,7 @@ public class MetaCell {
         this.enemyVehicles = enemyVehicles;
     }
 
+    //todo подсчёт с учётом местности
     public int distanceTo(MetaCell other) {
         return (int) pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5);
     }

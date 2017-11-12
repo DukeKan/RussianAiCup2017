@@ -1,4 +1,4 @@
-import java.util.Arrays;
+import java.util.*;
 
 /**
  * Created by DukeKan on 08.11.2017.
@@ -8,6 +8,7 @@ public class TransportSolver {
     public static boolean print = false;
 
     /**
+     * Решение не оптимальное
      * @param c стоимость пути от склада до магазина. По вертикали запасы (склады), по горизонтали потребность (магазины)
      * @param a запасы
      * @param b потребности
@@ -22,21 +23,21 @@ public class TransportSolver {
                 // потребность слишком большая
                 // вводим фиктивный склад
                 int ao = bsum - asum;
-                a = copyIncreasing(a, ao);
-                c = copyIncreasing(c, true);
+                a = Matrix.copyIncreasing(a, ao);
+                c = Matrix.copyIncreasing(c, true);
             } else {
                 // запасы больше потребности
                 // вводим фиктивный магазин
                 int bo = asum - bsum;
-                b = copyIncreasing(b, bo);
-                c = copyIncreasing(c, false);
+                b = Matrix.copyIncreasing(b, bo);
+                c = Matrix.copyIncreasing(c, false);
             }
         }
 
         int[][] p = new int[c.length][c[0].length];
 
-        int[] acopy = copy(a);
-        int[] bcopy = copy(b);
+        int[] acopy = Matrix.copy(a);
+        int[] bcopy = Matrix.copy(b);
 
         int secondStart = 0;
         for (int first = 0; first < p.length; first ++) {
@@ -56,7 +57,7 @@ public class TransportSolver {
         }
 
         checkCequalsB(p, b);
-        //check(acopy, bcopy);
+
         if (print) {
             Matrix.print(p);
         }
@@ -75,43 +76,49 @@ public class TransportSolver {
         }
     }
 
-    private static void check(int[] acopy, int[] bcopy) {
-        check(acopy);
-        check(bcopy);
-    }
 
-    private static void check(int[] inp) {
-        boolean right = Arrays.stream(inp).allMatch(i -> i == 0);
-        if (!right) {
-            throw new IllegalStateException("Incorrect algo");
-        }
-    }
+    /**
+     * Оптимизация с целью уменьшения малых отрядов
+     */
+     public static int[][] optimizeSolution(MetaCell[] myCells, MetaCell[] enemyCells, int[][] solve) {
+        List<Integer> rowsToRemove = new ArrayList<>();
+        List<Integer> colsToRemove = new ArrayList<>();
 
-    private static int[] copy(int[] a) {
-        return Arrays.stream(a).toArray();
-    }
+        if (solve.length > myCells.length) {
+            int newSizeI = myCells.length;
+            int diff = solve.length - newSizeI;
 
-    private static int[] copyIncreasing(int[] inp, int value) {
-        int[] copy = new int[inp.length+1];
-        System.arraycopy(inp, 0, copy, 0, inp.length);
-        copy[inp.length] = value;
-        return  copy;
-    }
+            Map<Integer, Integer> sumToRow = new TreeMap<>();
 
-    private static int[][] copyIncreasing(int[][] inp, boolean addStorage) {
-        int[][] copy;
-        if (addStorage) {
-            copy = new int[inp.length + 1][inp[0].length];
-        } else {
-            copy = new int[inp.length][inp[0].length + 1];
-        }
-        for (int i = 0; i < inp.length; i++) {
-            for (int j = 0; j < inp[0].length; j++) {
-                copy[i][j] = inp[i][j];
+            for (int i = 0; i < solve.length; i++) {
+                sumToRow.put(Arrays.stream(solve[i]).sum(), i);
+            }
+
+            Iterator<Integer> iterator = sumToRow.keySet().iterator();
+
+            for (int k = 0; k < diff; k++) {
+                rowsToRemove.add(sumToRow.get(iterator.next()));
             }
         }
-        return copy;
+        if (solve[0].length > enemyCells.length) {
+            int newSizeJ = enemyCells.length;
+            int diff = solve[0].length - newSizeJ;
+
+            Map<Integer, Integer> sumToCol = new TreeMap<>();
+
+            int[][] transposed = Matrix.transpose(solve);
+
+            for (int i = 0; i < transposed.length; i++) {
+                sumToCol.put(Arrays.stream(transposed[i]).sum(), i);
+            }
+
+            Iterator<Integer> iterator = sumToCol.keySet().iterator();
+
+            for (int k = 0; k < diff; k++) {
+                colsToRemove.add(sumToCol.get(iterator.next()));
+            }
+        }
+
+        return Matrix.changeDimension(solve, rowsToRemove, colsToRemove);
     }
-
-
 }

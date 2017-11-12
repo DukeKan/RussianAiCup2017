@@ -1,3 +1,4 @@
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -21,6 +22,32 @@ public class Matrix {
         }
 
         changeDimension(matrix, rowToRemove, colToRemove);
+    }
+
+    public static int[] copy(int[] a) {
+        return Arrays.stream(a).toArray();
+    }
+
+    public static int[] copyIncreasing(int[] inp, int value) {
+        int[] copy = new int[inp.length+1];
+        System.arraycopy(inp, 0, copy, 0, inp.length);
+        copy[inp.length] = value;
+        return  copy;
+    }
+
+    public static int[][] copyIncreasing(int[][] inp, boolean addRow) {
+        int[][] copy;
+        if (addRow) {
+            copy = new int[inp.length + 1][inp[0].length];
+        } else {
+            copy = new int[inp.length][inp[0].length + 1];
+        }
+        for (int i = 0; i < inp.length; i++) {
+            for (int j = 0; j < inp[0].length; j++) {
+                copy[i][j] = inp[i][j];
+            }
+        }
+        return copy;
     }
 
     public static int[][] changeDimension(int[][] matrix, List<Integer> rowToRemove, List<Integer> colToRemove) {
@@ -52,7 +79,7 @@ public class Matrix {
     }
 
     public static int[][] transpose (int[][] array) {
-        if (array == null || array.length == 0)//empty or unset array, nothing do to here
+        if (array == null || array.length == 0)
             return array;
 
         int width = array.length;
