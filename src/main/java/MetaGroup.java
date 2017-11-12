@@ -1,5 +1,3 @@
-package datastruct;
-
 import javafx.util.Pair;
 import model.Vehicle;
 import model.VehicleType;

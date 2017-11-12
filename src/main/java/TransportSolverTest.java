@@ -1,7 +1,3 @@
-package tests;
-
-import algo.TransportSolver;
-
 /**
  * Created by DukeKan on 08.11.2017.
  */

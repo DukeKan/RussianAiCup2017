@@ -1,14 +1,9 @@
-package datastruct;
-
-import datastruct.PlayerExt.Ownership;
 import javafx.util.Pair;
 import model.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static datastruct.PlayerExt.Ownership.*;
 
 /**
  * Created by DukeKan on 08.11.2017.
@@ -92,7 +87,7 @@ public class WorldExt {
         }
     }
 
-    public MetaCell[] getMetaCellsUnits(Ownership ownership, boolean putToEnemies, Set<VehicleType> vehicleTypes) {
+    public MetaCell[] getMetaCellsUnits(PlayerExt.Ownership ownership, boolean putToEnemies, Set<VehicleType> vehicleTypes) {
         List<MetaCell> metaCellsWithMyUnits = new LinkedList<>();
         for (int i = 0; i < metaCells.length; i++) {
             for (int j = 0; j < metaCells[0].length; j++) {
@@ -104,14 +99,14 @@ public class WorldExt {
                             veh.getY() < metaCell.getY() + metaCell.getSize();
                     return inside;
                 }).collect(Collectors.toList());
-                if (ownership.equals(MY)) {
+                if (ownership.equals(PlayerExt.Ownership.MY)) {
                     if (putToEnemies) {
                         metaCell.setEnemyVehicles(vehicles);
                     } else {
                         metaCell.setMyVehicles(vehicles);
                     }
                 }
-                if (ownership.equals(ENEMY)) {
+                if (ownership.equals(PlayerExt.Ownership.ENEMY)) {
                     metaCell.setEnemyVehicles(vehicles);
                 }
                 if (!vehicles.isEmpty()) {
@@ -122,7 +117,7 @@ public class WorldExt {
         return metaCellsWithMyUnits.stream().toArray(MetaCell[]::new);
     }
 
-    public Stream<Vehicle> streamVehicles(Ownership ownership, Collection<VehicleType> vehicleTypes) {
+    public Stream<Vehicle> streamVehicles(PlayerExt.Ownership ownership, Collection<VehicleType> vehicleTypes) {
         Stream<Vehicle> stream = vehicleById.values().stream();
 
         switch (ownership) {
@@ -142,17 +137,17 @@ public class WorldExt {
         return stream;
     }
 
-    public Stream<Vehicle> streamVehicles(Ownership ownership) {
+    public Stream<Vehicle> streamVehicles(PlayerExt.Ownership ownership) {
         return streamVehicles(ownership, null);
     }
 
     private Stream<Vehicle> streamVehicles() {
-        return streamVehicles(ANY);
+        return streamVehicles(PlayerExt.Ownership.ANY);
     }
 
-    public MetaGroup getMetaGroup(Ownership ownership, MetaCell metaCell, int vehicleCount) {
+    public MetaGroup getMetaGroup(PlayerExt.Ownership ownership, MetaCell metaCell, int vehicleCount) {
         List<Vehicle> vehicles = metaCell.getVehicles(ownership).subList(0, Math.min(vehicleCount,
-                ownership.equals(MY) ?
+                ownership.equals(PlayerExt.Ownership.MY) ?
                         metaCell.getMyVehicles().size() :
                         metaCell.getEnemyVehicles().size()));
         List<Pair<Double, Double>> vehpos = new ArrayList<>(vehicles.size());

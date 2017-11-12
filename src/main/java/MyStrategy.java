@@ -1,26 +1,14 @@
-import algo.Matrix;
-import algo.TransportSolver;
-import datastruct.MetaCell;
-import datastruct.MetaGroup;
-import datastruct.PlayerExt;
-import datastruct.WorldExt;
 import javafx.util.Pair;
 import model.*;
 
 import java.util.*;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static datastruct.PlayerExt.Ownership.ENEMY;
-import static datastruct.PlayerExt.Ownership.MY;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.of;
 import static model.VehicleType.*;
 import static model.VehicleType.HELICOPTER;
 import static model.VehicleType.TANK;
-import static sun.management.snmp.jvminstr.JvmThreadInstanceEntryImpl.ThreadStateMap.Byte0.runnable;
 
 @SuppressWarnings({"UnsecureRandomNumberGeneration", "FieldCanBeLocal", "unused", "OverlyLongMethod"})
 public final class MyStrategy implements Strategy {
@@ -58,10 +46,10 @@ public final class MyStrategy implements Strategy {
         if (delayedMoves.isEmpty()) {
             for (VehicleType vehicleType : vehicleTypes) {
 
-                PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? MY : ENEMY;
+                PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? PlayerExt.Ownership.MY : PlayerExt.Ownership.ENEMY;
                 boolean putToEnemies = vehicleType.equals(ARRV);
 
-                MetaCell[] myCells = worldExt.getMetaCellsUnits(MY, false, of(vehicleType).collect(toSet()));
+                MetaCell[] myCells = worldExt.getMetaCellsUnits(PlayerExt.Ownership.MY, false, of(vehicleType).collect(toSet()));
                 MetaCell[] enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, getPreferredTargetType(vehicleType));
 
                 if (myCells.length == 0) {
@@ -84,8 +72,8 @@ public final class MyStrategy implements Strategy {
                     }
                 }
 
-                int[] a = Arrays.stream(myCells).mapToInt(cell -> cell.getVehicles(MY).size()).toArray();
-                int[] b = Arrays.stream(enemyCells).mapToInt(cell -> cell.getVehicles(ENEMY).size()).toArray();
+                int[] a = Arrays.stream(myCells).mapToInt(cell -> cell.getVehicles(PlayerExt.Ownership.MY).size()).toArray();
+                int[] b = Arrays.stream(enemyCells).mapToInt(cell -> cell.getVehicles(PlayerExt.Ownership.ENEMY).size()).toArray();
 
                 int[][] solve = TransportSolver.solve(distances, a, b);
 
@@ -104,10 +92,10 @@ public final class MyStrategy implements Strategy {
                                 continue;
                             }
 
-                            MetaGroup myMetaGroup = worldExt.getMetaGroup(MY, myCell, solution);
-                            MetaGroup enemyMetaGroup = worldExt.getMetaGroup(ENEMY, enemyCell, solution);
+                            MetaGroup myMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.MY, myCell, solution);
+                            MetaGroup enemyMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.ENEMY, enemyCell, solution);
 
-                            if (!myCell.getVehicles(MY).isEmpty() && !enemyCell.getVehicles(ENEMY).isEmpty()) {
+                            if (!myCell.getVehicles(PlayerExt.Ownership.MY).isEmpty() && !enemyCell.getVehicles(PlayerExt.Ownership.ENEMY).isEmpty()) {
                                 int timeToPoint = myMetaGroup.getTimeToPoint(cellDist);
 
                                 //System.out.println(timeToPoint);

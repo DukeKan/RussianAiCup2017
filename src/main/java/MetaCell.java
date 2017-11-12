@@ -1,14 +1,9 @@
-package datastruct;
-
-import datastruct.PlayerExt.Ownership;
 import model.TerrainType;
 import model.Unit;
 import model.Vehicle;
 
 import java.util.*;
 
-import static datastruct.PlayerExt.Ownership.ENEMY;
-import static datastruct.PlayerExt.Ownership.MY;
 import static java.lang.Math.*;
 import static model.TerrainType.FOREST;
 import static model.TerrainType.PLAIN;
@@ -108,10 +103,10 @@ public class MetaCell {
         return enemyVehicles;
     }
 
-    public List<Vehicle> getVehicles(Ownership ownership) {
-        if (ownership.equals(Ownership.MY)) {
+    public List<Vehicle> getVehicles(PlayerExt.Ownership ownership) {
+        if (ownership.equals(PlayerExt.Ownership.MY)) {
             return myVehicles;
-        } else if (ownership.equals(ENEMY)){
+        } else if (ownership.equals(PlayerExt.Ownership.ENEMY)){
             return enemyVehicles;
         } else {
             return null;
@@ -126,16 +121,16 @@ public class MetaCell {
         return (int) pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5);
     }
 
-    public int getVehicleX(Ownership ownership) {
-        if (ownership.equals(MY)) {
+    public int getVehicleX(PlayerExt.Ownership ownership) {
+        if (ownership.equals(PlayerExt.Ownership.MY)) {
             return getMyVehX();
         }    else {
             return getEnemiesX();
         }
     }
 
-    public int getVehicleY(Ownership ownership) {
-        if (ownership.equals(MY)) {
+    public int getVehicleY(PlayerExt.Ownership ownership) {
+        if (ownership.equals(PlayerExt.Ownership.MY)) {
             return getMyVehY();
         }    else {
             return getEnemiesY();

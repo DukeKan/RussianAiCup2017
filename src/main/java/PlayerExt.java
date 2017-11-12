@@ -1,5 +1,3 @@
-package datastruct;
-
 import model.Player;
 
 /**
