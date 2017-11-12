@@ -5,10 +5,7 @@ import model.TerrainType;
 import model.Unit;
 import model.Vehicle;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.OptionalDouble;
+import java.util.*;
 
 import static datastruct.PlayerExt.Ownership.ENEMY;
 import static datastruct.PlayerExt.Ownership.MY;
@@ -30,7 +27,6 @@ public class MetaCell {
     private TerrainType offtenTerrainType;
     private List<Vehicle> myVehicles;
     private List<Vehicle> enemyVehicles;
-
 
     public MetaCell(int x, int y, int i, int j, int size, TerrainType[][] terrainTypes) {
         this.x = x;

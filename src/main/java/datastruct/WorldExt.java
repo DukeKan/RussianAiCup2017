@@ -1,6 +1,7 @@
 package datastruct;
 
 import datastruct.PlayerExt.Ownership;
+import javafx.util.Pair;
 import model.*;
 
 import java.util.*;
@@ -16,7 +17,8 @@ public class WorldExt {
     private World world;
     private MetaCell[][] metaCells;
     private final Map<Long, Vehicle> vehicleById = new HashMap<>();
-    private final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
+    public final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
+    public final Map<Long, Pair<Double, Double>> positions = new HashMap<>();
 
     public WorldExt(World world) {
         this.world = world;
@@ -67,10 +69,11 @@ public class WorldExt {
         }
     }
 
-    public void tick(World world){
+    public void tick(World world) {
         for (Vehicle vehicle : world.getNewVehicles()) {
             vehicleById.put(vehicle.getId(), vehicle);
             updateTickByVehicleId.put(vehicle.getId(), world.getTickIndex());
+            positions.put(vehicle.getId(), new Pair<Double, Double>(vehicle.getX(), vehicle.getY()));
         }
 
         for (VehicleUpdate vehicleUpdate : world.getVehicleUpdates()) {
@@ -79,14 +82,17 @@ public class WorldExt {
             if (vehicleUpdate.getDurability() == 0) {
                 vehicleById.remove(vehicleId);
                 updateTickByVehicleId.remove(vehicleId);
+                positions.remove(vehicleId);
             } else {
-                vehicleById.put(vehicleId, new Vehicle(vehicleById.get(vehicleId), vehicleUpdate));
+                positions.put(vehicleId, new Pair<>(vehicleById.get(vehicleId).getX(), vehicleById.get(vehicleId).getY()));
+                Vehicle newVeh = new Vehicle(vehicleById.get(vehicleId), vehicleUpdate);
+                vehicleById.put(vehicleId, newVeh);
                 updateTickByVehicleId.put(vehicleId, world.getTickIndex());
             }
         }
     }
 
-    public MetaCell[] getMetaCellsUnits(Ownership ownership, Set<VehicleType> vehicleTypes) {
+    public MetaCell[] getMetaCellsUnits(Ownership ownership, boolean putToEnemies, Set<VehicleType> vehicleTypes) {
         List<MetaCell> metaCellsWithMyUnits = new LinkedList<>();
         for (int i = 0; i < metaCells.length; i++) {
             for (int j = 0; j < metaCells[0].length; j++) {
@@ -99,7 +105,11 @@ public class WorldExt {
                     return inside;
                 }).collect(Collectors.toList());
                 if (ownership.equals(MY)) {
-                    metaCell.setMyVehicles(vehicles);
+                    if (putToEnemies) {
+                        metaCell.setEnemyVehicles(vehicles);
+                    } else {
+                        metaCell.setMyVehicles(vehicles);
+                    }
                 }
                 if (ownership.equals(ENEMY)) {
                     metaCell.setEnemyVehicles(vehicles);
@@ -112,7 +122,7 @@ public class WorldExt {
         return metaCellsWithMyUnits.stream().toArray(MetaCell[]::new);
     }
 
-    private Stream<Vehicle> streamVehicles(Ownership ownership, Set<VehicleType> vehicleTypes) {
+    public Stream<Vehicle> streamVehicles(Ownership ownership, Collection<VehicleType> vehicleTypes) {
         Stream<Vehicle> stream = vehicleById.values().stream();
 
         switch (ownership) {
@@ -132,7 +142,7 @@ public class WorldExt {
         return stream;
     }
 
-    private Stream<Vehicle> streamVehicles(Ownership ownership) {
+    public Stream<Vehicle> streamVehicles(Ownership ownership) {
         return streamVehicles(ownership, null);
     }
 
@@ -140,8 +150,14 @@ public class WorldExt {
         return streamVehicles(ANY);
     }
 
-    public MetaGroup getMetaGroup(MetaCell metaCell, int vehicleCount) {
-        return new MetaGroup(metaCell.getMyVehicles().subList(0, Math.min(vehicleCount, metaCell.getMyVehicles().size())));
+    public MetaGroup getMetaGroup(Ownership ownership, MetaCell metaCell, int vehicleCount) {
+        List<Vehicle> vehicles = metaCell.getVehicles(ownership).subList(0, Math.min(vehicleCount,
+                ownership.equals(MY) ?
+                        metaCell.getMyVehicles().size() :
+                        metaCell.getEnemyVehicles().size()));
+        List<Pair<Double, Double>> vehpos = new ArrayList<>(vehicles.size());
+        vehicles.forEach(veh -> vehpos.add(positions.get(veh.getId())));
+        return new MetaGroup(vehicles, vehpos);
     }
 
     public MetaCell getMetaCell(int i, int j) {

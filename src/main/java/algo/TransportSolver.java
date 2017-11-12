@@ -60,7 +60,7 @@ public class TransportSolver {
         checkCequalsB(p, b);
         //check(acopy, bcopy);
         if (print) {
-            print(p);
+            Matrix.print(p);
         }
         return p;
     }
@@ -115,14 +115,5 @@ public class TransportSolver {
         return copy;
     }
 
-    private static void print(int[][] inp) {
-        System.out.println();
-        System.out.println("Print");
-        for (int i = 0; i < inp.length; i++) {
-            System.out.println();
-            for (int j = 0; j < inp[0].length; j++) {
-                System.out.print("   " + inp[i][j]);
-            }
-        }
-    }
+
 }
