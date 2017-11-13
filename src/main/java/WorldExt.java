@@ -11,7 +11,7 @@ import java.util.stream.Stream;
 public class WorldExt {
     private World world;
     private MetaCell[][] metaCells;
-    private final Map<Long, Vehicle> vehicleById = new HashMap<>();
+    public final Map<Long, Vehicle> vehicleById = new HashMap<>();
     public static final Map<Long, Integer> updateTickByVehicleId = new HashMap<>();
     public static final Map<Long, Pair<Double, Double>> positions = new HashMap<>();
 
@@ -37,6 +37,10 @@ public class WorldExt {
 
     public double getHeight() {
         return world.getHeight();
+    }
+
+    public Vehicle getVehicleById(Long id) {
+        return vehicleById.get(id);
     }
 
     public void separateByMetaCells(int size) {
@@ -147,7 +151,7 @@ public class WorldExt {
 
     public MetaGroup getMetaGroup(PlayerExt.Ownership ownership, MetaCell metaCell, int vehicleCount) {
         List<Vehicle> vehiclesByOwnership = metaCell.getVehicles(ownership);
-        List<Vehicle> vehicles = vehiclesByOwnership.subList(0, Math.min(vehicleCount,vehiclesByOwnership.size()));
+        List<Vehicle> vehicles = vehiclesByOwnership.subList(0, Math.min(vehicleCount, vehiclesByOwnership.size()));
         List<Pair<Double, Double>> vehiclePositions = new ArrayList<>(vehicles.size());
         vehicles.forEach(veh -> vehiclePositions.add(positions.get(veh.getId())));
         return new MetaGroup(vehicles, vehiclePositions);
@@ -155,5 +159,60 @@ public class WorldExt {
 
     public MetaCell getMetaCell(int i, int j) {
         return metaCells[i][j];
+    }
+
+    public NuclearInfo getNuclearBombCenter(int windowSize) {
+        double centerX = 512;
+        double centerY = 512;
+        double enemiesVehiclesDerivMyVehicles = -1;
+        Vehicle vehicle = null;
+
+        for (int x = 0; x < world.getWidth(); x += windowSize) {
+            for (int y = 0; y < world.getHeight(); y += windowSize) {
+                // здесь нужно учитывать 3 параметра
+                // 1 - количество противников в квадрате
+                // 2 - количество своих в квадрате
+                // 3 - скорость противника в квадрате
+                int finalX = x;
+                int finalY = y;
+
+                List<Vehicle> enemyVehicles = streamVehicles(PlayerExt.Ownership.ENEMY).filter(veh -> {
+                    boolean inside = veh.getX() >= finalX &&
+                            veh.getX() < finalX + windowSize &&
+                            veh.getY() >= finalY &&
+                            veh.getY() < finalY + windowSize;
+                    return inside;
+                }).collect(Collectors.toList());
+
+                List<Vehicle> myVehicles = streamVehicles(PlayerExt.Ownership.MY).filter(veh -> {
+                    boolean inside = veh.getX() >= finalX &&
+                            veh.getX() < finalX + windowSize &&
+                            veh.getY() >= finalY &&
+                            veh.getY() < finalY + windowSize;
+                    return inside;
+                }).collect(Collectors.toList());
+
+                if (!enemyVehicles.isEmpty() && !myVehicles.isEmpty()) {
+                    int enemiesCount = enemyVehicles.size();
+                    double probablyX = enemyVehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
+                    double probablyY = enemyVehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
+                    double eneVehDerivMyVeh = ((double)enemyVehicles.size()) / myVehicles.size();
+                    if (eneVehDerivMyVeh > enemiesVehiclesDerivMyVehicles) {
+                        centerX = probablyX;
+                        centerY = probablyY;
+                        vehicle = myVehicles.iterator().next();
+                        enemiesVehiclesDerivMyVehicles = eneVehDerivMyVeh;
+                    }
+                }
+            }
+        }
+
+        if (enemiesVehiclesDerivMyVehicles < 0) {
+            return null;
+        }
+        NuclearInfo nuclearInfo = new NuclearInfo();
+        nuclearInfo.setCoordinates(new Pair<>(centerX, centerY));
+        nuclearInfo.setVehicle(vehicle);
+        return nuclearInfo;
     }
 }
