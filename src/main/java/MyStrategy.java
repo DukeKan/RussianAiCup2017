@@ -17,6 +17,7 @@ public final class MyStrategy implements Strategy {
     private PlayerExt myPlayerExt;
 
     private int cellSize = 256;
+    private int smallCellSize = 64;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -33,9 +34,9 @@ public final class MyStrategy implements Strategy {
         worldExt.tick(world);
         myPlayerExt.tick();
 
-        if (worldExt.streamVehicles(PlayerExt.Ownership.MY).count() < 100) {
+        if (worldExt.streamVehicles(PlayerExt.Ownership.MY).count() < 150 && cellSize != smallCellSize) {
             System.out.println("Small square!!!");
-            cellSize = 32;
+            cellSize = smallCellSize;
         }
 
         if (world.getTickIndex() < 2) {
@@ -185,7 +186,7 @@ public final class MyStrategy implements Strategy {
 
 
     private boolean executeDelayedMove(Move move) {
-        //System.out.println("Delayed moves size: " + delayedMoves.size());
+//        System.out.println("Delayed moves size: " + delayedMoves.size());
         Consumer<Move> delayedMove = delayedMoves.poll();
         if (delayedMove == null) {
             return false;
