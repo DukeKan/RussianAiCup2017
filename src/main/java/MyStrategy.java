@@ -14,6 +14,7 @@ public final class MyStrategy implements Strategy {
     private WorldExt worldExt;
     private final Queue<Consumer<Move>> delayedMoves = new ArrayDeque<>();
     private Random random;
+    private PlayerExt myPlayerExt;
 
     private int cellSize = 256;
 
@@ -25,9 +26,11 @@ public final class MyStrategy implements Strategy {
             worldExt = new WorldExt(world);
             worldExt.separateByMetaCells(cellSize);
             random = new Random(game.getRandomSeed());
+            myPlayerExt = new PlayerExt(PlayerExt.me);
         }
 
         worldExt.tick(world);
+        myPlayerExt.tick();
 
         if (world.getTickIndex() < 2) {
             return;
@@ -39,6 +42,18 @@ public final class MyStrategy implements Strategy {
 
         List<VehicleType> vehicleTypes = VehicleExt.getVehicleTypes();
         if (delayedMoves.isEmpty()) {
+            if (myPlayerExt.nuclearBombAvailable()) {
+                System.out.println("Require nuclear bomb!!!");
+                delayedMoves.add(delayedMove -> {
+                    System.out.println("BOMB!!!");
+                    delayedMove.setAction(ActionType.);
+                    delayedMove.setLeft(myCell.getX());
+                    delayedMove.setTop(myCell.getY());
+                    delayedMove.setRight(myCell.getX() + myCell.getSize());
+                    delayedMove.setBottom(myCell.getY() + myCell.getSize());
+                    delayedMove.setVehicleType(vehicleType);
+                });
+            }
             for (VehicleType vehicleType : vehicleTypes) {
 
                 PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? PlayerExt.Ownership.MY : PlayerExt.Ownership.ENEMY;
@@ -79,7 +94,7 @@ public final class MyStrategy implements Strategy {
 
                             int cellDist = myCell.distanceTo(enemyCell);
 
-                            if (cellDist < 5) {
+                            if (cellDist < 3) {
                                 continue;
                             }
 
