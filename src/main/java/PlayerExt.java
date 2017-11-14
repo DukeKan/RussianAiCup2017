@@ -7,6 +7,7 @@ import model.Vehicle;
  */
 public class PlayerExt {
     public static Player me;
+    public static Player enemy;
 
     private Player player;
     private WorldExt worldExt;

@@ -19,9 +19,12 @@ public final class MyStrategy implements Strategy {
     private int cellSize = 256;
     private int smallCellSize = 64;
 
+    private boolean bombAssigned = false;
+
     @Override
     public void move(Player me, World world, Game game, Move move) {
         PlayerExt.me = me;
+        PlayerExt.enemy = world.getOpponentPlayer();
 
         if (worldExt == null) {
             worldExt = new WorldExt(world);
@@ -47,29 +50,81 @@ public final class MyStrategy implements Strategy {
             return;
         }
 
-        List<VehicleType> vehicleTypes = VehicleExt.getVehicleTypes();
-        if (delayedMoves.isEmpty()) {
-            if (myPlayerExt.nuclearBombAvailable()) {
-                myPlayerExt.setNuclearVehicleDeadListener(() -> {
-                    // здесь нужно найти точку самого плотного скопления противника
-                    NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(64);
-                    if (nuclearInfo != null) {
-                        myPlayerExt.setNuclearCoordinates(nuclearInfo.getCoordinates());
-                        myPlayerExt.setNuclearBombVehicle(nuclearInfo.getVehicle());
-                    }
+        if (PlayerExt.enemy.getNextNuclearStrikeTickIndex() - game.getTickCount() < 30 &&
+                PlayerExt.enemy.getNextNuclearStrikeVehicleId() < 0) {
+            double nextNuclearStrikeX = PlayerExt.enemy.getNextNuclearStrikeX();
+            double nextNuclearStrikeY = PlayerExt.enemy.getNextNuclearStrikeY();
+
+            if (nextNuclearStrikeX > 0 && nextNuclearStrikeY > 0) {
+                delayedMoves.clear();
+
+                // драпаем
+                delayedMoves.add(delayedMove -> {
+                    delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
+                    delayedMove.setLeft(nextNuclearStrikeX - 40);
+                    delayedMove.setTop(nextNuclearStrikeY - 40);
+                    delayedMove.setRight(nextNuclearStrikeX + 40);
+                    delayedMove.setBottom(nextNuclearStrikeY + 40);
                 });
 
                 delayedMoves.add(delayedMove -> {
-                    if (myPlayerExt.hasNuclearVehicle()) {
+                    delayedMove.setAction(ActionType.MOVE);
+                    delayedMove.setX(512);
+                    delayedMove.setY(0);
+                });
+            }
+        }
+
+        if (myPlayerExt.nuclearBombAvailable() && !bombAssigned) {
+            delayedMoves.clear();
+
+            delayedMoves.add(delayedMove -> delayedMove.setAction(ActionType.NONE));
+
+            myPlayerExt.setNuclearVehicleDeadListener(() -> {
+                // здесь нужно найти точку самого плотного скопления противника
+                NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(64);
+                if (nuclearInfo != null) {
+                    myPlayerExt.setNuclearCoordinates(nuclearInfo.getCoordinates());
+                    myPlayerExt.setNuclearBombVehicle(nuclearInfo.getVehicle());
+                }
+            });
+
+            if (myPlayerExt.hasNuclearVehicle()) {
+                bombAssigned = true;
+                delayedMoves.add(delayedMove -> {
+                    if (myPlayerExt.getNuclearBombVehicle() != null) {
                         System.out.println("BOMB!!!");
                         delayedMove.setAction(ActionType.TACTICAL_NUCLEAR_STRIKE);
                         delayedMove.setVehicleId(myPlayerExt.getNuclearBombVehicle().getId());
                         delayedMove.setX(myPlayerExt.getNuclearCoordinates().getKey());
                         delayedMove.setY(myPlayerExt.getNuclearCoordinates().getValue());
                         myPlayerExt.dropNuclearBomb();
+                        bombAssigned = false;
+                    } else {
+                        delayedMove.setAction(ActionType.NONE);
+                    }
+                });
+                delayedMoves.add(delayedMove -> {
+                    if (myPlayerExt.getNuclearBombVehicle() != null) {
+                        System.out.println("Freeze bomber!!!");
+                        delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
+                        delayedMove.setVehicleType(myPlayerExt.getNuclearBombVehicle().getType());
+                        delayedMove.setLeft(myPlayerExt.getNuclearBombVehicle().getX() - 10);
+                        delayedMove.setRight(myPlayerExt.getNuclearBombVehicle().getX() + 10);
+                        delayedMove.setTop(myPlayerExt.getNuclearBombVehicle().getY() - 10);
+                        delayedMove.setBottom(myPlayerExt.getNuclearBombVehicle().getY() + 10);
+                        delayedMove.setX(0);
+                        delayedMove.setY(0);
+                    } else {
+                        delayedMove.setAction(ActionType.NONE);
                     }
                 });
             }
+        }
+
+        List<VehicleType> vehicleTypes = VehicleExt.getVehicleTypes();
+        if (delayedMoves.isEmpty()) {
+
             for (VehicleType vehicleType : vehicleTypes) {
 
                 PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? PlayerExt.Ownership.MY : PlayerExt.Ownership.ENEMY;
@@ -82,7 +137,7 @@ public final class MyStrategy implements Strategy {
                     enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, VehicleExt.getAnyTargetType(vehicleType));
                 }
 
-                if (myCells.length == 0 || enemyCells.length == 0) {
+                if (myCells.length == 0 || enemyCells.length == 0) { // вот здесь можно отправлять в край карты или на разведку
                     continue;
                 }
 
@@ -139,6 +194,19 @@ public final class MyStrategy implements Strategy {
                                     delayedMove.setVehicleType(vehicleType);
                                 });
 
+                                if (vehicleType.equals(ARRV)) {
+                                    delayedMoves.add(delayedMove -> {
+                                        delayedMove.setAction(ActionType.SCALE);
+                                        double centerX = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
+                                        double centerY = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
+                                        delayedMove.setX( positionInTime.getKey() + (xDist) * 10);
+                                        delayedMove.setY( positionInTime.getValue() + (yDist) * 10);
+                                        delayedMove.setFactor(10);
+                                        delayedMove.setVehicleType(vehicleType);
+                                        System.out.println("Scaling ARRV");
+                                    });
+                                }
+
                                 delayedMoves.add(delayedMove -> {
                                     delayedMove.setAction(ActionType.MOVE);
                                     delayedMove.setX(xDist);
@@ -169,8 +237,8 @@ public final class MyStrategy implements Strategy {
 
             delayedMoves.add(delayedMove -> {
                 delayedMove.setAction(ActionType.ROTATE);
-                delayedMove.setX(x + (random.nextDouble() - 0.5) * 20);
-                delayedMove.setY(y + (random.nextDouble() - 0.5) * 20);
+                delayedMove.setX(x + (random.nextDouble() - 0.5) * 100);
+                delayedMove.setY(y + (random.nextDouble() - 0.5) * 100);
                 delayedMove.setAngle(random.nextBoolean() ? StrictMath.PI : -StrictMath.PI);
             });
         }
