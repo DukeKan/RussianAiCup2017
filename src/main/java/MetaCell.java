@@ -3,6 +3,7 @@ import model.Unit;
 import model.Vehicle;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static java.lang.Math.*;
 import static model.TerrainType.FOREST;
@@ -19,17 +20,19 @@ public class MetaCell {
     private int j;
     private int size;
     private TerrainType[][] terrainTypes;
+    private WorldExt worldExt;
     private TerrainType offtenTerrainType;
     private List<Vehicle> myVehicles;
     private List<Vehicle> enemyVehicles;
 
-    public MetaCell(int x, int y, int i, int j, int size, TerrainType[][] terrainTypes) {
+    public MetaCell(int x, int y, int i, int j, int size, TerrainType[][] terrainTypes, WorldExt worldExt) {
         this.x = x;
         this.y = y;
         this.i = i;
         this.j = j;
         this.size = size;
         this.terrainTypes = terrainTypes;
+        this.worldExt = worldExt;
     }
 
     public TerrainType getOfftenTerrainType() {
@@ -118,8 +121,27 @@ public class MetaCell {
     }
 
     //todo подсчёт с учётом местности
+
+    public int distanceToWithEnemies(MetaCell other) {
+        return (int) (pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5) *
+                getEnemiesKoefficient(other.getEnemiesX(), other.getEnemiesY()));
+    }
+
     public int distanceTo(MetaCell other) {
-        return (int) pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5);
+        return (int) (pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5));
+    }
+
+    private double getEnemiesKoefficient(int enemiesX, int enemiesY) {
+
+        List<Vehicle> enemiesVehicles = worldExt.streamVehicles(PlayerExt.Ownership.ENEMY).filter(veh -> {
+            boolean inside = veh.getX() >= this.getX() &&
+                    veh.getX() < enemiesX &&
+                    veh.getY() >= this.getY() &&
+                    veh.getY() < enemiesY;
+            return inside;
+        }).collect(Collectors.toList());
+
+        return  enemiesVehicles.size() * 0.1 ;
     }
 
     public int getVehicleX(PlayerExt.Ownership ownership) {

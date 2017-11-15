@@ -12,6 +12,7 @@ import static java.lang.Math.*;
 public class MetaGroup {
     private List<Vehicle> vehicles;
     private List<Pair<Double, Double>> vehiclePrevPositions;
+    private Pair<Integer, Integer> targetPosition;
 
     public MetaGroup(List<Vehicle> vehicles, List<Pair<Double, Double>> vehpos) {
         this.vehicles = vehicles;
@@ -66,5 +67,13 @@ public class MetaGroup {
         }
 
         return new Pair<>((int) nextX, (int) nextY);
+    }
+
+    public Pair<Integer, Integer> getTargetPosition() {
+        return targetPosition;
+    }
+
+    public void setTargetPosition(Pair<Integer, Integer> targetPosition) {
+        this.targetPosition = targetPosition;
     }
 }

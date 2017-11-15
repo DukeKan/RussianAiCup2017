@@ -5,6 +5,8 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static model.VehicleType.*;
+
 /**
  * Created by DukeKan on 08.11.2017.
  */
@@ -61,7 +63,7 @@ public class WorldExt {
 //                }
 
                 // инкапсулируем информацию о метаклетке
-                MetaCell metaCell = new MetaCell(x, y, i, j, size, null);
+                MetaCell metaCell = new MetaCell(x, y, i, j, size, null, this);
                 metaCells[i][j] = metaCell;
             }
             j = 0;
@@ -176,7 +178,9 @@ public class WorldExt {
                 int finalX = x;
                 int finalY = y;
 
-                List<Vehicle> enemyVehicles = streamVehicles(PlayerExt.Ownership.ENEMY).filter(veh -> {
+                // чтобы не бомбил по ремонтникам
+                List<VehicleType> preferableVehicles = Stream.of(TANK, IFV, FIGHTER, HELICOPTER).collect(Collectors.toList());
+                List<Vehicle> enemyVehicles = streamVehicles(PlayerExt.Ownership.ENEMY, preferableVehicles).filter(veh -> {
                     boolean inside = veh.getX() >= finalX &&
                             veh.getX() < finalX + windowSize &&
                             veh.getY() >= finalY &&
@@ -184,7 +188,22 @@ public class WorldExt {
                     return inside;
                 }).collect(Collectors.toList());
 
-                List<Vehicle> myVehicles = streamVehicles(PlayerExt.Ownership.MY).filter(veh -> {
+                // чтобы не бомбил по ремонтникам
+                List<VehicleType> notPreferableVehicles = Stream.of(ARRV).collect(Collectors.toList());
+                List<Vehicle> notEnemyVehicles = streamVehicles(PlayerExt.Ownership.ENEMY, notPreferableVehicles).filter(veh -> {
+                    boolean inside = veh.getX() >= finalX &&
+                            veh.getX() < finalX + windowSize &&
+                            veh.getY() >= finalY &&
+                            veh.getY() < finalY + windowSize;
+                    return inside;
+                }).collect(Collectors.toList());
+
+                int enemiesCount = enemyVehicles.size() - notEnemyVehicles.size();
+                if (enemiesCount < 0) {
+                    enemiesCount = 0;
+                }
+
+                List<Vehicle> myVehicles = streamVehicles(PlayerExt.Ownership.MY, preferableVehicles).filter(veh -> {
                     boolean inside = veh.getX() >= finalX &&
                             veh.getX() < finalX + windowSize &&
                             veh.getY() >= finalY &&
@@ -193,10 +212,10 @@ public class WorldExt {
                 }).collect(Collectors.toList());
 
                 if (!enemyVehicles.isEmpty() && !myVehicles.isEmpty()) {
-                    int enemiesCount = enemyVehicles.size();
                     double probablyX = enemyVehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
                     double probablyY = enemyVehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
-                    double eneVehDerivMyVeh = ((double)enemyVehicles.size()) / myVehicles.size();
+                    double eneVehDerivMyVeh = ((double) enemiesCount) / myVehicles.size();
+                    eneVehDerivMyVeh = eneVehDerivMyVeh * eneVehDerivMyVeh; // чтобы больший вес имели большие структуры противника
                     if (eneVehDerivMyVeh > enemiesVehiclesDerivMyVehicles) {
                         centerX = probablyX;
                         centerY = probablyY;
@@ -214,5 +233,9 @@ public class WorldExt {
         nuclearInfo.setCoordinates(new Pair<>(centerX, centerY));
         nuclearInfo.setVehicle(vehicle);
         return nuclearInfo;
+    }
+
+    public World getWorld() {
+        return world;
     }
 }

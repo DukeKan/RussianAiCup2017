@@ -20,6 +20,7 @@ public final class MyStrategy implements Strategy {
     private int smallCellSize = 64;
 
     private boolean bombAssigned = false;
+    private boolean enemyBombAssigned = false;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -57,6 +58,7 @@ public final class MyStrategy implements Strategy {
 
             if (nextNuclearStrikeX > 0 && nextNuclearStrikeY > 0) {
                 delayedMoves.clear();
+                enemyBombAssigned = true;
 
                 // драпаем
                 delayedMoves.add(delayedMove -> {
@@ -73,16 +75,19 @@ public final class MyStrategy implements Strategy {
                     delayedMove.setY(0);
                 });
             }
+        } else {
+            enemyBombAssigned = false;
         }
 
-        if (myPlayerExt.nuclearBombAvailable() && !bombAssigned) {
+        NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(64);
+
+        if (myPlayerExt.nuclearBombAvailable() && !bombAssigned && !enemyBombAssigned && nuclearInfo != null) {
             delayedMoves.clear();
 
             delayedMoves.add(delayedMove -> delayedMove.setAction(ActionType.NONE));
 
             myPlayerExt.setNuclearVehicleDeadListener(() -> {
                 // здесь нужно найти точку самого плотного скопления противника
-                NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(64);
                 if (nuclearInfo != null) {
                     myPlayerExt.setNuclearCoordinates(nuclearInfo.getCoordinates());
                     myPlayerExt.setNuclearBombVehicle(nuclearInfo.getVehicle());
@@ -144,7 +149,7 @@ public final class MyStrategy implements Strategy {
                 int[][] distances = new int[myCells.length][enemyCells.length];
                 for (int i = 0; i < myCells.length; i++) {
                     for (int j = 0; j < enemyCells.length; j++) {
-                        int distance = myCells[i].distanceTo(enemyCells[j]);
+                        int distance = myCells[i].distanceToWithEnemies(enemyCells[j]);
                         distances[i][j] = distance;
                     }
                 }
@@ -180,7 +185,13 @@ public final class MyStrategy implements Strategy {
                             if (!myCell.getVehicles(PlayerExt.Ownership.MY).isEmpty() && !enemyCell.getVehicles(PlayerExt.Ownership.ENEMY).isEmpty()) {
                                 int timeToPoint = myMetaGroup.getTimeToPoint(cellDist);
 
+                                // на слишком далёкие расстояния нет толку предсказывать
+                                // форсируем события
+                                if (timeToPoint > 800) {
+                                    timeToPoint = 800;
+                                }
                                 Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint / 2);
+                                myMetaGroup.setTargetPosition(positionInTime);
 
                                 int xDist = positionInTime.getKey() - myCell.getMyVehX();
                                 int yDist = positionInTime.getValue() - myCell.getMyVehY();
@@ -199,8 +210,8 @@ public final class MyStrategy implements Strategy {
                                         delayedMove.setAction(ActionType.SCALE);
                                         double centerX = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
                                         double centerY = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
-                                        delayedMove.setX( positionInTime.getKey() + (xDist) * 10);
-                                        delayedMove.setY( positionInTime.getValue() + (yDist) * 10);
+                                        delayedMove.setX( positionInTime.getKey() + 100);
+                                        delayedMove.setY( positionInTime.getValue() + 100);
                                         delayedMove.setFactor(10);
                                         delayedMove.setVehicleType(vehicleType);
                                         System.out.println("Scaling ARRV");

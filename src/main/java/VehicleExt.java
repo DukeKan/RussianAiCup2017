@@ -46,11 +46,11 @@ public class VehicleExt {
 
     public static List<VehicleType> getVehicleTypes() {
         List<VehicleType> vehicleTypes = new ArrayList<>(5);
-        vehicleTypes.add(FIGHTER);
-        vehicleTypes.add(HELICOPTER);
-        vehicleTypes.add(IFV);
-        vehicleTypes.add(TANK);
         vehicleTypes.add(ARRV);
+        vehicleTypes.add(TANK);
+        vehicleTypes.add(IFV);
+        vehicleTypes.add(HELICOPTER);
+        vehicleTypes.add(FIGHTER);
         return vehicleTypes;
     }
 }
