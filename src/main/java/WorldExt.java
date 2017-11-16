@@ -54,14 +54,6 @@ public class WorldExt {
         metaCells = new MetaCell[height][width];
         for (int x = 0; x < getHeight(); x = size + i * size, i++) {
             for (int y = 0; y < getWidth(); y = size + j * size, j++) {
-
-//                TerrainType[][] terrainTypes = new TerrainType[size][size];
-//                for (int smallX = x; smallX < x + size; smallX ++) {
-//                    for (int smallY = y; smallY < y + size; smallY ++) {
-//                        terrainTypes[smallX-x][smallY-y] = getTerrain()[x + smallX][y + smallY];
-//                    }
-//                }
-
                 // инкапсулируем информацию о метаклетке
                 MetaCell metaCell = new MetaCell(x, y, i, j, size, null, this);
                 metaCells[i][j] = metaCell;
@@ -215,6 +207,9 @@ public class WorldExt {
                     double probablyX = enemyVehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
                     double probablyY = enemyVehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
                     double eneVehDerivMyVeh = ((double) enemiesCount) / myVehicles.size();
+                    if (enemiesCount < 25) {
+                        eneVehDerivMyVeh = 0;
+                    }
                     eneVehDerivMyVeh = eneVehDerivMyVeh * eneVehDerivMyVeh; // чтобы больший вес имели большие структуры противника
                     if (eneVehDerivMyVeh > enemiesVehiclesDerivMyVehicles) {
                         centerX = probablyX;

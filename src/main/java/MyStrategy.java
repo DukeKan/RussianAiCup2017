@@ -6,7 +6,7 @@ import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.of;
-import static model.VehicleType.ARRV;
+import static model.VehicleType.*;
 
 @SuppressWarnings({"UnsecureRandomNumberGeneration", "FieldCanBeLocal", "unused", "OverlyLongMethod"})
 public final class MyStrategy implements Strategy {
@@ -16,7 +16,7 @@ public final class MyStrategy implements Strategy {
     private Random random;
     private PlayerExt myPlayerExt;
 
-    private int cellSize = 256;
+    private int cellSize = 512;
     private int smallCellSize = 64;
 
     private boolean bombAssigned = false;
@@ -129,7 +129,6 @@ public final class MyStrategy implements Strategy {
 
         List<VehicleType> vehicleTypes = VehicleExt.getVehicleTypes();
         if (delayedMoves.isEmpty()) {
-
             for (VehicleType vehicleType : vehicleTypes) {
 
                 PlayerExt.Ownership meOrEnemy = vehicleType.equals(ARRV) ? PlayerExt.Ownership.MY : PlayerExt.Ownership.ENEMY;
@@ -170,14 +169,17 @@ public final class MyStrategy implements Strategy {
 
                             int cellDist = myCell.distanceTo(enemyCell);
 
-                            if (cellDist < 3) {
-                                continue;
-                            }
+//                            if (cellDist < 3) {
+//                                continue;
+//                            }
 
-                            if (waitTooLong(world, myCell)) {
-                                rotate(world, myCell);
-                                continue;
-                            }
+                            double myVehicleCount = myCell.getMyVehicles().size();
+                            double enemyVehicleCount = enemyCell.getEnemyVehicles().size();
+
+//                            if (waitTooLong(world, myCell)) {
+//                                rotate(world, myCell);
+//                                continue;
+//                            }
 
                             MetaGroup myMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.MY, myCell, solution);
                             MetaGroup enemyMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.ENEMY, enemyCell, solution);
@@ -187,8 +189,8 @@ public final class MyStrategy implements Strategy {
 
                                 // на слишком далёкие расстояния нет толку предсказывать
                                 // форсируем события
-                                if (timeToPoint > 800) {
-                                    timeToPoint = 800;
+                                if (timeToPoint > 400) {
+                                    timeToPoint = 400;
                                 }
                                 Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint / 2);
                                 myMetaGroup.setTargetPosition(positionInTime);
@@ -205,23 +207,48 @@ public final class MyStrategy implements Strategy {
                                     delayedMove.setVehicleType(vehicleType);
                                 });
 
-                                if (vehicleType.equals(ARRV)) {
-                                    delayedMoves.add(delayedMove -> {
-                                        delayedMove.setAction(ActionType.SCALE);
-                                        double centerX = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
-                                        double centerY = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
-                                        delayedMove.setX( positionInTime.getKey() + 100);
-                                        delayedMove.setY( positionInTime.getValue() + 100);
-                                        delayedMove.setFactor(10);
-                                        delayedMove.setVehicleType(vehicleType);
-                                        System.out.println("Scaling ARRV");
-                                    });
-                                }
+//                                if (vehicleType.equals(ARRV)) {
+//                                    delayedMoves.add(delayedMove -> {
+//                                        delayedMove.setAction(ActionType.SCALE);
+//                                        double centerX = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
+//                                        double centerY = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
+//                                        delayedMove.setX(positionInTime.getKey() + 100);
+//                                        delayedMove.setY(positionInTime.getValue() + 100);
+//                                        delayedMove.setFactor(10);
+//                                        delayedMove.setVehicleType(vehicleType);
+//                                        System.out.println("Scaling ARRV");
+//                                    });
+//                                }
 
                                 delayedMoves.add(delayedMove -> {
                                     delayedMove.setAction(ActionType.MOVE);
-                                    delayedMove.setX(xDist);
-                                    delayedMove.setY(yDist);
+                                    if (world.getTickIndex() < 800) {
+                                        if (vehicleType.equals(FIGHTER)) {
+                                            delayedMove.setMaxSpeed(0.5);
+                                            delayedMove.setX(900 - myCell.getMyVehX());
+                                            delayedMove.setY(200 - myCell.getMyVehY());
+                                        }
+                                        if (vehicleType.equals(HELICOPTER)) {
+                                            delayedMove.setMaxSpeed(0.8);
+                                            delayedMove.setX(200 - myCell.getMyVehX());
+                                            delayedMove.setY(900 - myCell.getMyVehY());
+                                        }
+                                        if (vehicleType.equals(TANK)) {
+                                            delayedMove.setX(900 - myCell.getMyVehX());
+                                            delayedMove.setY(200 - myCell.getMyVehY());
+                                        }
+                                        if (vehicleType.equals(IFV)) {
+                                            delayedMove.setX(200 - myCell.getMyVehX());
+                                            delayedMove.setY(900 - myCell.getMyVehY());
+                                        }
+                                        if (vehicleType.equals(ARRV)) {
+                                            delayedMove.setX(400 - myCell.getMyVehX());
+                                            delayedMove.setY(400 - myCell.getMyVehY());
+                                        }
+                                    } else {
+                                        delayedMove.setX(xDist);
+                                        delayedMove.setY(yDist);
+                                    }
                                 });
                             }
                         }

@@ -35,29 +35,6 @@ public class MetaCell {
         this.worldExt = worldExt;
     }
 
-    public TerrainType getOfftenTerrainType() {
-        Map<TerrainType, Integer> typesCount = new HashMap<>();
-        typesCount.put(FOREST, 0);
-        typesCount.put(TerrainType.PLAIN, 0);
-        typesCount.put(TerrainType.SWAMP, 0);
-        for (int i = 0; i < terrainTypes.length; i++) {
-            for (int j = 0; j < terrainTypes[0].length; j++) {
-                TerrainType terrainType = terrainTypes[i][j];
-                typesCount.put(terrainType, typesCount.get(terrainType) + 1);
-            }
-        }
-        if (typesCount.get(FOREST) >= typesCount.get(PLAIN) && typesCount.get(FOREST) >= typesCount.get(SWAMP)) {
-            return FOREST;
-        }
-        if (typesCount.get(PLAIN) >= typesCount.get(FOREST) && typesCount.get(PLAIN) >= typesCount.get(SWAMP)) {
-            return PLAIN;
-        }
-        if (typesCount.get(SWAMP) >= typesCount.get(FOREST) && typesCount.get(SWAMP) >= typesCount.get(PLAIN)) {
-            return SWAMP;
-        }
-        return null;
-    }
-
     public int getX() {
         return x;
     }
@@ -86,14 +63,6 @@ public class MetaCell {
         return terrainTypes;
     }
 
-    public void setTerrainTypes(TerrainType[][] terrainTypes) {
-        this.terrainTypes = terrainTypes;
-    }
-
-    public void setOfftenTerrainType(TerrainType offtenTerrainType) {
-        this.offtenTerrainType = offtenTerrainType;
-    }
-
     public List<Vehicle> getMyVehicles() {
         return myVehicles;
     }
@@ -119,8 +88,6 @@ public class MetaCell {
     public void setEnemyVehicles(List<Vehicle> enemyVehicles) {
         this.enemyVehicles = enemyVehicles;
     }
-
-    //todo подсчёт с учётом местности
 
     public int distanceToWithEnemies(MetaCell other) {
         return (int) (pow((pow(this.x - other.x, 2) + pow(this.y - other.y, 2)), 0.5) *
