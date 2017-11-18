@@ -3,7 +3,11 @@ import model.*;
 
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.lang.Math.*;
+import static java.lang.Math.sin;
 import static java.util.stream.Collectors.toSet;
 import static java.util.stream.Stream.of;
 import static model.VehicleType.*;
@@ -17,10 +21,12 @@ public final class MyStrategy implements Strategy {
     private PlayerExt myPlayerExt;
 
     private int cellSize = 512;
-    private int smallCellSize = 64;
+    private int smallCellSize = 256;
 
     private boolean bombAssigned = false;
     private boolean enemyBombAssigned = false;
+
+    private boolean scaled = false;
 
     @Override
     public void move(Player me, World world, Game game, Move move) {
@@ -69,6 +75,8 @@ public final class MyStrategy implements Strategy {
                     delayedMove.setBottom(nextNuclearStrikeY + 40);
                 });
 
+
+                // надо доработать
                 delayedMoves.add(delayedMove -> {
                     delayedMove.setAction(ActionType.MOVE);
                     delayedMove.setX(512);
@@ -79,7 +87,7 @@ public final class MyStrategy implements Strategy {
             enemyBombAssigned = false;
         }
 
-        NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(64);
+        NuclearInfo nuclearInfo = worldExt.getNuclearBombCenter(70);
 
         if (myPlayerExt.nuclearBombAvailable() && !bombAssigned && !enemyBombAssigned && nuclearInfo != null) {
             delayedMoves.clear();
@@ -141,7 +149,15 @@ public final class MyStrategy implements Strategy {
                     enemyCells = worldExt.getMetaCellsUnits(meOrEnemy, putToEnemies, VehicleExt.getAnyTargetType(vehicleType));
                 }
 
-                if (myCells.length == 0 || enemyCells.length == 0) { // вот здесь можно отправлять в край карты или на разведку
+                if (enemyCells.length == 0 && !scaled) { // разведка
+                    for (MetaCell myCell : myCells) {
+                        scale(world, myCell, 10);
+                    }
+                    scaled = true;
+                    continue;
+                }
+
+                if (myCells.length == 0) {
                     continue;
                 }
 
@@ -169,17 +185,8 @@ public final class MyStrategy implements Strategy {
 
                             int cellDist = myCell.distanceTo(enemyCell);
 
-//                            if (cellDist < 3) {
-//                                continue;
-//                            }
-
                             double myVehicleCount = myCell.getMyVehicles().size();
                             double enemyVehicleCount = enemyCell.getEnemyVehicles().size();
-
-//                            if (waitTooLong(world, myCell)) {
-//                                rotate(world, myCell);
-//                                continue;
-//                            }
 
                             MetaGroup myMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.MY, myCell, solution);
                             MetaGroup enemyMetaGroup = worldExt.getMetaGroup(PlayerExt.Ownership.ENEMY, enemyCell, solution);
@@ -189,69 +196,69 @@ public final class MyStrategy implements Strategy {
 
                                 // на слишком далёкие расстояния нет толку предсказывать
                                 // форсируем события
-                                if (timeToPoint > 400) {
-                                    timeToPoint = 400;
+                                if (timeToPoint > 200 && myMetaGroup.isMoving()) { // подумать над вариантом пропуска хода, если и так движемся в нужную точку.
+                                   continue; // самая большая частота команд должна быть возле противника
                                 }
-                                Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint / 2);
+
+                                Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint);
                                 myMetaGroup.setTargetPosition(positionInTime);
 
-                                int xDist = positionInTime.getKey() - myCell.getMyVehX();
-                                int yDist = positionInTime.getValue() - myCell.getMyVehY();
+                                int bestDegree = 0;
+                                int bestPointsEnemiesCount = 1000;
+                                double bestX = 400;
+                                double bestY = 400;
+                                for (int degree = 0; degree < 360; degree += 20) {
+                                    int x0 = positionInTime.getKey();
+                                    int y0 = positionInTime.getValue();
+                                    double r = myMetaGroup.getVehicles().stream().mapToDouble(VehicleExt::getAttackRange).average().getAsDouble() * 1.1;
+                                    double alpha = ((degree * PI) / 180); // угол относительно оси x по часовой стрелке
+                                    double x1 = x0 + r * cos(alpha);
+                                    double y1 = y0 + r * sin(alpha);
+
+                                    int pointEnemiesCount = worldExt.streamVehicles(PlayerExt.Ownership.ENEMY).filter(veh -> {
+                                        return veh.getX() >= x1 - 100 &&
+                                                veh.getX() < x1 + 100 &&
+                                                veh.getY() >= y1 - 100 &&
+                                                veh.getY() < y1 + 100;
+                                    }).collect(Collectors.toList()).size();
+
+                                    if (pointEnemiesCount < bestPointsEnemiesCount && x1 > 60 && y1 > 60 && x1 < 960 && y1 < 960) {
+                                        bestX = x1;
+                                        bestY = y1;
+                                    }
+                                }
+
+                                double xDist = bestX - myCell.getMyVehX();
+                                double yDist = bestY - myCell.getMyVehY();
 
                                 delayedMoves.add(delayedMove -> {
                                     delayedMove.setAction(ActionType.CLEAR_AND_SELECT);
-                                    delayedMove.setLeft(myCell.getX());
-                                    delayedMove.setTop(myCell.getY());
-                                    delayedMove.setRight(myCell.getX() + myCell.getSize());
-                                    delayedMove.setBottom(myCell.getY() + myCell.getSize());
+                                    delayedMove.setLeft(myMetaGroup.getVehicleX() - 50);
+                                    delayedMove.setTop(myMetaGroup.getVehicleY() - 50);
+                                    delayedMove.setRight(myMetaGroup.getVehicleX() + 50);
+                                    delayedMove.setBottom(myMetaGroup.getVehicleY() + 50);
                                     delayedMove.setVehicleType(vehicleType);
                                 });
 
-//                                if (vehicleType.equals(ARRV)) {
-//                                    delayedMoves.add(delayedMove -> {
-//                                        delayedMove.setAction(ActionType.SCALE);
-//                                        double centerX = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
-//                                        double centerY = myMetaGroup.getVehicles().stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
-//                                        delayedMove.setX(positionInTime.getKey() + 100);
-//                                        delayedMove.setY(positionInTime.getValue() + 100);
-//                                        delayedMove.setFactor(10);
-//                                        delayedMove.setVehicleType(vehicleType);
-//                                        System.out.println("Scaling ARRV");
-//                                    });
-//                                }
+                                delayedMoves.add(delayedMove -> {
+                                    delayedMove.setAction(ActionType.SCALE);
+                                    delayedMove.setX(myMetaGroup.getVehicleX());
+                                    delayedMove.setY(myMetaGroup.getVehicleY());
+                                    delayedMove.setFactor(0.5);
+                                });
 
                                 delayedMoves.add(delayedMove -> {
                                     delayedMove.setAction(ActionType.MOVE);
-                                    if (world.getTickIndex() < 800) {
-                                        if (vehicleType.equals(FIGHTER)) {
-                                            delayedMove.setMaxSpeed(0.5);
-                                            delayedMove.setX(900 - myCell.getMyVehX());
-                                            delayedMove.setY(200 - myCell.getMyVehY());
-                                        }
-                                        if (vehicleType.equals(HELICOPTER)) {
-                                            delayedMove.setMaxSpeed(0.8);
-                                            delayedMove.setX(200 - myCell.getMyVehX());
-                                            delayedMove.setY(900 - myCell.getMyVehY());
-                                        }
-                                        if (vehicleType.equals(TANK)) {
-                                            delayedMove.setX(900 - myCell.getMyVehX());
-                                            delayedMove.setY(200 - myCell.getMyVehY());
-                                        }
-                                        if (vehicleType.equals(IFV)) {
-                                            delayedMove.setX(200 - myCell.getMyVehX());
-                                            delayedMove.setY(900 - myCell.getMyVehY());
-                                        }
-                                        if (vehicleType.equals(ARRV)) {
-                                            delayedMove.setX(400 - myCell.getMyVehX());
-                                            delayedMove.setY(400 - myCell.getMyVehY());
-                                        }
-                                    } else {
-                                        delayedMove.setX(xDist);
-                                        delayedMove.setY(yDist);
-                                    }
+                                    delayedMove.setX(xDist);
+                                    delayedMove.setY(yDist);
                                 });
                             }
                         }
+                    }
+                }
+                if (world.getTickIndex() > 2000 && delayedMoves.size() < 3) {
+                    for (MetaCell myCell : myCells) {
+                        scale(world, myCell, 0.8);
                     }
                 }
             }
@@ -260,7 +267,7 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    private void rotate(World world, MetaCell myCell) {
+    private void scale(World world, MetaCell myCell, double factor) {
         double x = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
         double y = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
 
@@ -274,14 +281,14 @@ public final class MyStrategy implements Strategy {
             });
 
             delayedMoves.add(delayedMove -> {
-                delayedMove.setAction(ActionType.ROTATE);
-                delayedMove.setX(x + (random.nextDouble() - 0.5) * 100);
-                delayedMove.setY(y + (random.nextDouble() - 0.5) * 100);
-                delayedMove.setAngle(random.nextBoolean() ? StrictMath.PI : -StrictMath.PI);
+                delayedMove.setAction(ActionType.SCALE);
+                delayedMove.setX(x);
+                delayedMove.setY(y);
+                delayedMove.setFactor(factor);
             });
         }
 
-        System.out.println("Reformation");
+        System.out.println("SCALING");
     }
 
     private boolean waitTooLong(World world, MetaCell myCell) {
@@ -292,7 +299,7 @@ public final class MyStrategy implements Strategy {
 
 
     private boolean executeDelayedMove(Move move) {
-//        System.out.println("Delayed moves size: " + delayedMoves.size());
+        System.out.println("Delayed moves size: " + delayedMoves.size());
         Consumer<Move> delayedMove = delayedMoves.poll();
         if (delayedMove == null) {
             return false;

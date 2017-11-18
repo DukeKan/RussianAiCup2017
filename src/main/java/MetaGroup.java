@@ -23,6 +23,28 @@ public class MetaGroup {
         return vehicles;
     }
 
+    public double getVehicleX() {
+        return vehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
+    }
+
+    public double getVehicleY() {
+        return vehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
+    }
+
+    public boolean isMoving() {
+        double prevX = vehiclePrevPositions.stream().mapToDouble(pos -> pos.getKey()).average().getAsDouble();
+        double prevY = vehiclePrevPositions.stream().mapToDouble(pos -> pos.getValue()).average().getAsDouble();
+
+        double currX = vehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
+        double currY = vehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
+
+        return coordinatesNotEqual(prevX, currX, prevY, currY);
+    }
+
+    private boolean coordinatesNotEqual(double x1, double x2, double y1, double y2) {
+        return Math.abs(x1 - x2) > 0.02 && Math.abs(y1 - y2) > 0.02;
+    }
+
     public void setVehicles(List<Vehicle> vehicles) {
         this.vehicles = vehicles;
     }

@@ -85,7 +85,7 @@ public class WorldExt {
         }
     }
 
-    public MetaCell[] getMetaCellsUnits(PlayerExt.Ownership ownership, boolean putToEnemies, Set<VehicleType> vehicleTypes) {
+    public MetaCell[] getMetaCellsUnits(PlayerExt.Ownership ownership, boolean putToEnemies, Collection<VehicleType> vehicleTypes) {
         List<MetaCell> metaCellsWithMyUnits = new LinkedList<>();
         for (int i = 0; i < metaCells.length; i++) {
             for (int j = 0; j < metaCells[0].length; j++) {
@@ -158,7 +158,7 @@ public class WorldExt {
     public NuclearInfo getNuclearBombCenter(int windowSize) {
         double centerX = 512;
         double centerY = 512;
-        double enemiesVehiclesDerivMyVehicles = -1;
+        double enemiesVehiclesDerivMyVehicles = 1;
         Vehicle vehicle = null;
 
         for (int x = 0; x < world.getWidth(); x += windowSize) {
@@ -190,7 +190,8 @@ public class WorldExt {
                     return inside;
                 }).collect(Collectors.toList());
 
-                int enemiesCount = enemyVehicles.size() - notEnemyVehicles.size();
+
+                int enemiesCount = enemyVehicles.size() - 0;//notEnemyVehicles.size();
                 if (enemiesCount < 0) {
                     enemiesCount = 0;
                 }
@@ -207,14 +208,19 @@ public class WorldExt {
                     double probablyX = enemyVehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
                     double probablyY = enemyVehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
                     double eneVehDerivMyVeh = ((double) enemiesCount) / myVehicles.size();
-                    if (enemiesCount < 25) {
+                    if (enemiesCount < 10) {
                         eneVehDerivMyVeh = 0;
                     }
                     eneVehDerivMyVeh = eneVehDerivMyVeh * eneVehDerivMyVeh; // чтобы больший вес имели большие структуры противника
                     if (eneVehDerivMyVeh > enemiesVehiclesDerivMyVehicles) {
                         centerX = probablyX;
                         centerY = probablyY;
-                        vehicle = myVehicles.iterator().next();
+                        vehicle = myVehicles.stream()
+                                .filter(myVeh -> myVeh.getDistanceTo(probablyX, probablyX) < myVeh.getVisionRange())
+                                .sorted((veh1, veh2) -> {
+                                    return veh2.getDistanceTo(probablyX, probablyX) < veh1.getDistanceTo(probablyX, probablyX) ? -1 : 1;
+                                })
+                                .findFirst().orElseGet(() -> myVehicles.iterator().next());
                         enemiesVehiclesDerivMyVehicles = eneVehDerivMyVeh;
                     }
                 }
