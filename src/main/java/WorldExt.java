@@ -1,3 +1,4 @@
+import com.sun.istack.internal.Nullable;
 import javafx.util.Pair;
 import model.*;
 
@@ -151,12 +152,12 @@ public class WorldExt {
         return streamVehicles(PlayerExt.Ownership.ANY);
     }
 
-    public MetaGroup getMetaGroup(PlayerExt.Ownership ownership, MetaCell metaCell, int vehicleCount) {
+    public MetaGroup getMetaGroup(PlayerExt.Ownership ownership, MetaCell metaCell, int vehicleCount, @Nullable VehicleType vehicleType) {
         List<Vehicle> vehiclesByOwnership = metaCell.getVehicles(ownership);
         List<Vehicle> vehicles = vehiclesByOwnership.subList(0, Math.min(vehicleCount, vehiclesByOwnership.size()));
         List<Pair<Double, Double>> vehiclePositions = new ArrayList<>(vehicles.size());
         vehicles.forEach(veh -> vehiclePositions.add(positions.get(veh.getId())));
-        return new MetaGroup(vehicles, vehiclePositions);
+        return new MetaGroup(vehicles, vehiclePositions, UUID.randomUUID(), vehicleType);
     }
 
     public MetaCell getMetaCell(int i, int j) {

@@ -3,6 +3,7 @@ import model.Vehicle;
 import model.VehicleType;
 
 import java.util.List;
+import java.util.UUID;
 
 import static java.lang.Math.*;
 
@@ -14,9 +15,14 @@ public class MetaGroup {
     private List<Pair<Double, Double>> vehiclePrevPositions;
     private Pair<Integer, Integer> targetPosition;
 
-    public MetaGroup(List<Vehicle> vehicles, List<Pair<Double, Double>> vehpos) {
+    private UUID id;
+    private VehicleType vehicleType;
+
+    public MetaGroup(List<Vehicle> vehicles, List<Pair<Double, Double>> vehpos, UUID id, VehicleType vehicleType) {
         this.vehicles = vehicles;
         vehiclePrevPositions = vehpos;
+        this.id = id;
+        this.vehicleType = vehicleType;
     }
 
     public List<Vehicle> getVehicles() {
@@ -61,7 +67,7 @@ public class MetaGroup {
         return pow((pow(veh.getX() - x, 2) + pow(veh.getY() - y, 2)), 0.5);
     }
 
-    public Pair<Integer, Integer> getPositionInTime(int time) {
+    public Pair<Integer, Integer> getPositionInTime(double time) {
         double avSpeed = vehicles.stream().mapToDouble(veh -> veh.getMaxSpeed()).max().orElse(0);
         double avX = vehicles.stream().mapToDouble(veh -> veh.getX()).average().orElse(512);
         double avY = vehicles.stream().mapToDouble(veh -> veh.getY()).average().orElse(512);
@@ -97,5 +103,25 @@ public class MetaGroup {
 
     public void setTargetPosition(Pair<Integer, Integer> targetPosition) {
         this.targetPosition = targetPosition;
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public VehicleType getVehicleType() {
+        return vehicleType;
+    }
+
+    public void setVehicleType(VehicleType vehicleType) {
+        this.vehicleType = vehicleType;
+    }
+
+    public int distanceTo(MetaGroup enemyMetaGroup) {
+        return (int) (pow((pow(this.getVehicleX() - enemyMetaGroup.getVehicleX(), 2) + pow(this.getVehicleY() - enemyMetaGroup.getVehicleY(), 2)), 0.5));
     }
 }
