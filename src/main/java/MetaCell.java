@@ -1,6 +1,8 @@
+import com.sun.istack.internal.Nullable;
 import model.TerrainType;
 import model.Unit;
 import model.Vehicle;
+import model.VehicleType;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -65,6 +67,13 @@ public class MetaCell {
 
     public List<Vehicle> getMyVehicles() {
         return myVehicles;
+    }
+
+    public List<Vehicle> getMyVehicles(@Nullable VehicleType vehicleType) {
+        if (vehicleType == null) {
+            return myVehicles;
+        }
+        return myVehicles.stream().filter(veh -> veh.getType().equals(vehicleType)).collect(Collectors.toList());
     }
 
     public void setMyVehicles(List<Vehicle> myVehicles) {

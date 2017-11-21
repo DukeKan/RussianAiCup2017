@@ -1,10 +1,10 @@
+import com.sun.istack.internal.Nullable;
 import javafx.util.Pair;
 import model.*;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.lang.Math.*;
 import static java.lang.Math.sin;
@@ -151,7 +151,7 @@ public final class MyStrategy implements Strategy {
 
                 if (enemyCells.length == 0 && !scaled) { // разведка
                     for (MetaCell myCell : myCells) {
-                        scale(world, myCell, 10);
+                        scale(world, myCell, 10, vehicleType);
                     }
                     scaled = true;
                     continue;
@@ -196,8 +196,8 @@ public final class MyStrategy implements Strategy {
 
                                 // на слишком далёкие расстояния нет толку предсказывать
                                 // форсируем события
-                                if (timeToPoint > 200 && myMetaGroup.isMoving()) { // подумать над вариантом пропуска хода, если и так движемся в нужную точку.
-                                   continue; // самая большая частота команд должна быть возле противника
+                                if (timeToPoint > 200 && myMetaGroup.isMoving()) {
+                                    continue; // самая большая частота команд должна быть возле противника
                                 }
 
                                 Pair<Integer, Integer> positionInTime = enemyMetaGroup.getPositionInTime(timeToPoint);
@@ -215,11 +215,12 @@ public final class MyStrategy implements Strategy {
                                     double x1 = x0 + r * cos(alpha);
                                     double y1 = y0 + r * sin(alpha);
 
-                                    int pointEnemiesCount = worldExt.streamVehicles(PlayerExt.Ownership.ENEMY).filter(veh -> {
-                                        return veh.getX() >= x1 - 100 &&
-                                                veh.getX() < x1 + 100 &&
-                                                veh.getY() >= y1 - 100 &&
-                                                veh.getY() < y1 + 100;
+                                    int windowSize = 50;
+                                    int pointEnemiesCount = worldExt.streamEnemiesOrMyAreaTypeVehicles(vehicleType).filter(veh -> {
+                                        return veh.getX() >= x1 - windowSize &&
+                                                veh.getX() < x1 + windowSize &&
+                                                veh.getY() >= y1 - windowSize &&
+                                                veh.getY() < y1 + windowSize;
                                     }).collect(Collectors.toList()).size();
 
                                     if (pointEnemiesCount < bestPointsEnemiesCount && x1 > 60 && y1 > 60 && x1 < 960 && y1 < 960) {
@@ -244,7 +245,7 @@ public final class MyStrategy implements Strategy {
                                     delayedMove.setAction(ActionType.SCALE);
                                     delayedMove.setX(myMetaGroup.getVehicleX());
                                     delayedMove.setY(myMetaGroup.getVehicleY());
-                                    delayedMove.setFactor(0.5);
+                                    delayedMove.setFactor(0.1);
                                 });
 
                                 delayedMoves.add(delayedMove -> {
@@ -258,7 +259,7 @@ public final class MyStrategy implements Strategy {
                 }
                 if (world.getTickIndex() > 2000 && delayedMoves.size() < 3) {
                     for (MetaCell myCell : myCells) {
-                        scale(world, myCell, 0.8);
+                        scale(world, myCell, 0.8, vehicleType);
                     }
                 }
             }
@@ -267,9 +268,9 @@ public final class MyStrategy implements Strategy {
         }
     }
 
-    private void scale(World world, MetaCell myCell, double factor) {
-        double x = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
-        double y = myCell.getMyVehicles().stream().mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
+    private void scale(World world, MetaCell myCell, double factor, @Nullable VehicleType vehicleType) {
+        double x = myCell.getMyVehicles(vehicleType).stream().mapToDouble(Vehicle::getX).average().orElse(Double.NaN);
+        double y = myCell.getMyVehicles(vehicleType).stream().mapToDouble(Vehicle::getY).average().orElse(Double.NaN);
 
         if (!Double.isNaN(x) && !Double.isNaN(y)) {
             delayedMoves.add(delayedMove -> {

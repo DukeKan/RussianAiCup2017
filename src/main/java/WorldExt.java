@@ -139,6 +139,14 @@ public class WorldExt {
         return streamVehicles(ownership, null);
     }
 
+    public Stream<Vehicle> streamEnemiesOrMyAreaTypeVehicles(VehicleType vehicleType) {
+        return Stream.concat(streamVehicles(PlayerExt.Ownership.ENEMY), streamMySameAreaVehicles(vehicleType));
+    }
+
+    public Stream<Vehicle> streamMySameAreaVehicles(VehicleType vehicleType) {
+        return streamVehicles(PlayerExt.Ownership.MY).filter(veh -> VehicleExt.getSameAreaVehicleTypes(vehicleType).contains(veh.getType()));
+    }
+
     private Stream<Vehicle> streamVehicles() {
         return streamVehicles(PlayerExt.Ownership.ANY);
     }
@@ -158,7 +166,7 @@ public class WorldExt {
     public NuclearInfo getNuclearBombCenter(int windowSize) {
         double centerX = 512;
         double centerY = 512;
-        double enemiesVehiclesDerivMyVehicles = 1;
+        double enemiesVehiclesDerivMyVehicles = 0;
         Vehicle vehicle = null;
 
         for (int x = 0; x < world.getWidth(); x += windowSize) {
@@ -208,9 +216,9 @@ public class WorldExt {
                     double probablyX = enemyVehicles.stream().mapToDouble(veh -> veh.getX()).average().getAsDouble();
                     double probablyY = enemyVehicles.stream().mapToDouble(veh -> veh.getY()).average().getAsDouble();
                     double eneVehDerivMyVeh = ((double) enemiesCount) / myVehicles.size();
-                    if (enemiesCount < 10) {
-                        eneVehDerivMyVeh = 0;
-                    }
+//                    if (enemiesCount < 10) {
+//                        eneVehDerivMyVeh = 0;
+//                    }
                     eneVehDerivMyVeh = eneVehDerivMyVeh * eneVehDerivMyVeh; // чтобы больший вес имели большие структуры противника
                     if (eneVehDerivMyVeh > enemiesVehiclesDerivMyVehicles) {
                         centerX = probablyX;

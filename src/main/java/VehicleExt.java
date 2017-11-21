@@ -18,6 +18,10 @@ import static model.VehicleType.TANK;
  * Created by DukeKan on 12.11.2017.
  */
 public class VehicleExt {
+
+    private static List<VehicleType> groundTypes = Stream.of(TANK, ARRV, IFV).collect(toList());
+    private static List<VehicleType> flyingTypes = Stream.of(HELICOPTER, FIGHTER).collect(toList());
+
     public static Set<VehicleType> getPreferredTargetType(VehicleType vehicleType) {
         switch (vehicleType) {
             case FIGHTER:
@@ -67,7 +71,14 @@ public class VehicleExt {
     }
 
     public static boolean isGround(VehicleType vehicleType) {
-        List<VehicleType> groundTypes = Stream.of(TANK, ARRV, IFV).collect(toList());
         return groundTypes.contains(vehicleType);
+    }
+
+    public static List<VehicleType> getSameAreaVehicleTypes(VehicleType vehicleType) {
+        if (isGround(vehicleType)) {
+            return groundTypes;
+        } else {
+            return flyingTypes;
+        }
     }
 }
